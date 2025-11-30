@@ -3,8 +3,8 @@ using System;
 
 public enum Team
 {
-    Red,
-    Blue
+    Blue,
+    Red
 }
 
 public partial class MainGame : Control
@@ -12,7 +12,7 @@ public partial class MainGame : Control
     [Export] Panel menuPanel;
     [Export] Label pointsBlueLabel;
     [Export] Label pointsRedLabel;
-    public const bool HOST = true; // temp value
+    public const bool IsHost = true; // temp value
     public int pointsBlue;
     public int pointsRed;
     Team startingTeam;
@@ -30,11 +30,10 @@ public partial class MainGame : Control
         menuPanel.Visible = false;
 
         // Choosing starting team
-        if (HOST)
+        if (IsHost)
         {
             // Choose starting team randomly
-            var values = Enum.GetValues(typeof(Team));
-            Team startingTeam = (Team)values.GetValue(Random.Shared.Next(values.Length));
+            startingTeam = (Team)Random.Shared.Next(0, 2);
 
             // Send starting team to clients
         }
@@ -49,12 +48,14 @@ public partial class MainGame : Control
             currentTurn = Team.Blue;
             pointsBlue = 9;
             pointsRed = 8;
+            SetTurnBlue();
         }
         else
         {
             currentTurn = Team.Red;
             pointsBlue = 8;
             pointsRed = 9;
+            SetTurnRed();
         }
         UpdatePointsDisplay();
     }
@@ -113,6 +114,7 @@ public partial class MainGame : Control
 
     public void RemovePointBlue()
     {
+        GD.Print("Point removed from team blue...");
         pointsBlue--;
         UpdatePointsDisplay();
         if (pointsBlue == 0)
@@ -121,6 +123,7 @@ public partial class MainGame : Control
 
     public void RemovePointRed()
     {
+        GD.Print("Point removed from team red...");
         pointsRed--;
         UpdatePointsDisplay();
         if (pointsRed == 0)
@@ -130,13 +133,23 @@ public partial class MainGame : Control
     public void TurnChange()
     {
         if (currentTurn == Team.Blue)
-        {
-            currentTurn = Team.Red;
-        }
+            SetTurnRed();
         else
-        {
-            currentTurn = Team.Blue;
-        }
+            SetTurnBlue();
+    }
+
+    public void SetTurnBlue()
+    {
+        GD.Print("Turn blue...");
+        currentTurn = Team.Blue;
+        // color change
+    }
+
+    public void SetTurnRed()
+    {
+        GD.Print("Turn red...");
+        currentTurn = Team.Red;
+        // color change
     }
 
     public void EndGame(Team winner)

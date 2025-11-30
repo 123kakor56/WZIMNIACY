@@ -22,4 +22,4 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_ma5ho")
 
 [node name="Label" parent="VBoxContainer" index="0"]
 theme_override_styles/normal = SubResource("StyleBoxFlat_8agg6")
-text = "Punkty czerwonych: 0"
+text = "Karty czerwonych: -"
