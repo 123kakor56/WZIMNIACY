@@ -14,6 +14,8 @@ public partial class MainGame : Control
     [Export] Label pointsLabelRed;
     [Export] ColorRect turnDiodeBlue;
     [Export] ColorRect turnDiodeRed;
+    [Export] PanelContainer teamListBlue;
+    [Export] PanelContainer teamListRed;
     public const bool IsHost = true; // temp value
     public int pointsBlue;
     public int pointsRed;
@@ -29,6 +31,8 @@ public partial class MainGame : Control
         pointsLabelRed = GetNode<Label>("Panel/HBoxContainer/MiddlePanel/VMiddlePanel/TopBar/RedScoreContainer/VBoxContainer/Label");
         turnDiodeBlue = GetNode<ColorRect>("Panel/HBoxContainer/MiddlePanel/VMiddlePanel/TopBar/BlueScoreContainer/VBoxContainer/Control/ColorRect");
         turnDiodeRed = GetNode<ColorRect>("Panel/HBoxContainer/MiddlePanel/VMiddlePanel/TopBar/RedScoreContainer/VBoxContainer/Control/ColorRect");
+        teamListBlue = GetNode<PanelContainer>("Panel/HBoxContainer/LeftPanel/VLeftPanel/PlayerListContainer/PanelContainer/VBoxContainer/BluePlayerList/VBoxContainer/PanelContainer");
+        teamListRed = GetNode<PanelContainer>("Panel/HBoxContainer/LeftPanel/VLeftPanel/PlayerListContainer/PanelContainer/VBoxContainer/PlayerList/VBoxContainer/PanelContainer");
 
         // Hide menu panel at start
         menuPanel.Visible = false;
@@ -148,6 +152,8 @@ public partial class MainGame : Control
         currentTurn = Team.Blue;
         turnDiodeBlue.Visible = true;
         turnDiodeRed.Visible = false;
+        teamListBlue.Modulate = new Color(2.8f, 2.8f, 2.8f, 1f);
+        teamListRed.Modulate = new Color(1f, 1f, 1f, 1f);
     }
 
     public void SetTurnRed()
@@ -156,6 +162,8 @@ public partial class MainGame : Control
         currentTurn = Team.Red;
         turnDiodeBlue.Visible = false;
         turnDiodeRed.Visible = true;
+        teamListBlue.Modulate = new Color(1f, 1f, 1f, 1f);
+        teamListRed.Modulate = new Color(2.8f, 2.8f, 2.8f, 1f);
     }
 
     public void EndGame(Team winner)
