@@ -12,6 +12,8 @@ public partial class LobbyMenu : Control
     private ItemList redTeamList;
     private Button blueTeamJoinButton;
     private Button redTeamJoinButton;
+    private Label blueTeamCountLabel;
+    private Label redTeamCountLabel;
     private LineEdit lobbyIdInput;
     private Button copyIdButton;
     private Button generateNewIdButton;
@@ -84,6 +86,10 @@ public partial class LobbyMenu : Control
         redTeamList = GetNode<ItemList>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/RedTeamPanel/RedTeamContainer/RedTeamMembers");
         blueTeamJoinButton = GetNode<Button>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/BlueTeamPanel/BlueTeamContainer/BlueTeamJoinButton");
         redTeamJoinButton = GetNode<Button>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/RedTeamPanel/RedTeamContainer/RedTeamJoinButton");
+
+        // Pobierz labele liczników drużyn
+        blueTeamCountLabel = GetNode<Label>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/BlueTeamPanel/BlueTeamContainer/BlueTeamHeaderContainer/BlueTeamCount");
+        redTeamCountLabel = GetNode<Label>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/RedTeamPanel/RedTeamContainer/RedTeamHeaderContainer/RedTeamCount");
 
         // Pobierz przyciski do dołączania do drużyn
         blueTeamJoinButton = GetNode<Button>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/BlueTeamPanel/BlueTeamContainer/BlueTeamJoinButton");
@@ -267,6 +273,16 @@ public partial class LobbyMenu : Control
         }
 
         GD.Print($"✅ Teams updated: Blue={blueTeamList.ItemCount}, Red={redTeamList.ItemCount}");
+
+        // Aktualizuj liczniki drużyn
+        if (blueTeamCountLabel != null)
+        {
+            blueTeamCountLabel.Text = $"{blueTeamList.ItemCount}/5";
+        }
+        if (redTeamCountLabel != null)
+        {
+            redTeamCountLabel.Text = $"{redTeamList.ItemCount}/5";
+        }
 
         // Zaktualizuj widoczność przycisków dla hosta/gracza
         UpdateUIVisibility();
@@ -690,7 +706,7 @@ public partial class LobbyMenu : Control
     private void ShowMemberActionsPopup(string userId, string displayName, string currentTeam, Vector2 globalPosition)
     {
         GD.Print($"📋 Creating popup menu for {displayName}");
-        
+
         // Stwórz PopupMenu
         var popup = new PopupMenu();
         popup.AddItem("🔵 Przenieś do Niebieskich", 0);
@@ -703,7 +719,7 @@ public partial class LobbyMenu : Control
         popup.IndexPressed += (index) =>
         {
             GD.Print($"📋 Popup menu item {index} pressed for {displayName}");
-            
+
             switch (index)
             {
                 case 0:
@@ -727,7 +743,7 @@ public partial class LobbyMenu : Control
         GetTree().Root.AddChild(popup);
         popup.Position = (Vector2I)globalPosition;
         popup.PopupOnParent(new Rect2I(popup.Position, new Vector2I(1, 1)));
-        
+
         GD.Print($"📋 Popup shown at position {globalPosition}");
     }
 }
