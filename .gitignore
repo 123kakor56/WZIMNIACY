@@ -5,6 +5,7 @@
 # Lokalny, niewysyłany folder dla gry, bo czemu nie
 _ExportedGameLocal/*
 !_ExportedGameLocal/_empty
+!_ExportedGameLocal/.gdignore
 
 
 
