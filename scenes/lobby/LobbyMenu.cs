@@ -10,6 +10,8 @@ public partial class LobbyMenu : Control
     private Button leaveLobbyButton;
     private ItemList blueTeamList;
     private ItemList redTeamList;
+    private Button blueTeamJoinButton;
+    private Button redTeamJoinButton;
     private LineEdit lobbyIdInput;
     private Button copyIdButton;
     private Button generateNewIdButton;
@@ -80,6 +82,8 @@ public partial class LobbyMenu : Control
         // Pobierz listy drużyn
         blueTeamList = GetNode<ItemList>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/BlueTeamPanel/BlueTeamContainer/BlueTeamsMembers");
         redTeamList = GetNode<ItemList>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/RedTeamPanel/RedTeamContainer/RedTeamMembers");
+        blueTeamJoinButton = GetNode<Button>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/BlueTeamPanel/BlueTeamContainer/BlueTeamJoinButton");
+        redTeamJoinButton = GetNode<Button>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/RedTeamPanel/RedTeamContainer/RedTeamJoinButton");
 
         // Podłącz obsługę prawego kliknięcia dla hosta! >:3
         if (blueTeamList != null)
@@ -89,7 +93,19 @@ public partial class LobbyMenu : Control
         if (redTeamList != null)
         {
             redTeamList.GuiInput += (inputEvent) => OnTeamListGuiInput(inputEvent, redTeamList);
-        }        // WAŻNE: Podłącz sygnał z EOSManager do aktualizacji drużyn
+        }
+
+        if (blueTeamJoinButton != null)
+        {
+            blueTeamJoinButton.Pressed += OnBlueTeamJoinButtonPressed;
+        }
+
+        if (redTeamJoinButton != null)
+        {
+            redTeamJoinButton.Pressed += OnRedTeamJoinButtonPressed;
+        }
+
+        // WAŻNE: Podłącz sygnał z EOSManager do aktualizacji drużyn
         if (eosManager != null)
         {
             eosManager.LobbyMembersUpdated += OnLobbyMembersUpdated;
@@ -130,6 +146,9 @@ public partial class LobbyMenu : Control
         {
             GD.PrintErr("⚠️ Entered lobby scene but not in any lobby!");
         }
+
+        // Domyślnie odblokuj przyciski dołączania zanim spłyną dane z EOS
+        UpdateTeamButtonsState("");
     }
 
     /// <summary>
@@ -175,6 +194,8 @@ public partial class LobbyMenu : Control
         blueTeamList.Clear();
         redTeamList.Clear();
 
+        string detectedLocalTeam = "";
+
         // Rozdziel graczy na drużyny WEDŁUG ATRYBUTU "team"
         foreach (var member in members)
         {
@@ -183,6 +204,11 @@ public partial class LobbyMenu : Control
             bool isLocalPlayer = (bool)member["isLocalPlayer"];
             string team = member.ContainsKey("team") ? member["team"].ToString() : "";
             string userId = member.ContainsKey("userId") ? member["userId"].ToString() : "";
+
+            if (isLocalPlayer)
+            {
+                detectedLocalTeam = string.IsNullOrEmpty(team) ? "" : team;
+            }
 
             // Dodaj ikonę korony dla właściciela
             if (isOwner)
@@ -228,6 +254,9 @@ public partial class LobbyMenu : Control
 
         // Zaktualizuj widoczność przycisków dla hosta/gracza
         UpdateUIVisibility();
+
+        // Odśwież stan przycisków drużynowych
+        UpdateTeamButtonsState(detectedLocalTeam);
     }
 
     /// <summary>
@@ -500,6 +529,7 @@ public partial class LobbyMenu : Control
         string lobbyIdCode = GenerateLobbyIDCode();
         currentLobbyCode = lobbyIdCode;
 
+
         // Wyświetl kod w UI
         if (lobbyIdInput != null)
         {
@@ -508,6 +538,57 @@ public partial class LobbyMenu : Control
 
         eosManager.CreateLobby(lobbyIdCode, 10, true);
         GD.Print("✅ EOS logged in, creating lobby. Lobby ID: " + lobbyIdCode);
+    }
+
+    private void OnBlueTeamJoinButtonPressed()
+    {
+        TryJoinTeam("Blue");
+    }
+
+    private void OnRedTeamJoinButtonPressed()
+    {
+        TryJoinTeam("Red");
+    }
+
+    private string currentLocalTeam = "";
+
+    private void TryJoinTeam(string teamName)
+    {
+        if (eosManager == null)
+        {
+            GD.PrintErr("❌ Cannot change team: EOSManager not available");
+            return;
+        }
+
+        if (teamName != "Blue" && teamName != "Red")
+        {
+            GD.PrintErr($"❌ Invalid team name requested: {teamName}");
+            return;
+        }
+
+        if (currentLocalTeam == teamName)
+        {
+            GD.Print($"ℹ️ Already in {teamName} team, ignoring join request");
+            return;
+        }
+
+        eosManager.SetMyTeam(teamName);
+        GD.Print($"🔁 Sending request to join {teamName} team");
+    }
+
+    private void UpdateTeamButtonsState(string localTeam)
+    {
+        currentLocalTeam = string.IsNullOrEmpty(localTeam) ? "" : localTeam;
+
+        if (blueTeamJoinButton != null)
+        {
+            blueTeamJoinButton.Disabled = currentLocalTeam == "Blue";
+        }
+
+        if (redTeamJoinButton != null)
+        {
+            redTeamJoinButton.Disabled = currentLocalTeam == "Red";
+        }
     }
 
     public override void _ExitTree()
@@ -520,6 +601,16 @@ public partial class LobbyMenu : Control
             eosManager.LobbyMembersUpdated -= OnLobbyMembersUpdated;
             eosManager.CustomLobbyIdUpdated -= OnCustomLobbyIdUpdated;
             eosManager.GameModeUpdated -= OnGameModeUpdated;
+        }
+
+        if (blueTeamJoinButton != null)
+        {
+            blueTeamJoinButton.Pressed -= OnBlueTeamJoinButtonPressed;
+        }
+
+        if (redTeamJoinButton != null)
+        {
+            redTeamJoinButton.Pressed -= OnRedTeamJoinButtonPressed;
         }
     }
 
