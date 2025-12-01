@@ -1,9 +1,9 @@
 [gd_scene load_steps=5 format=3 uid="uid://1xcx58a5k85a"]
 
 [ext_resource type="Texture2D" uid="uid://cdovhk1megx81" path="res://icon.svg" id="1_a4kyt"]
-[ext_resource type="Script" uid="uid://ce1tsde0jdaka" path="res://scripts/UI/UiManager.cs" id="2_qmux8"]
-[ext_resource type="Script" uid="uid://bwqwua4dlauj" path="res://scripts/UI/LobbyListUI.cs" id="3_llh4u"]
-[ext_resource type="Script" uid="uid://08tiiunwdnrd" path="res://Unused/EOStestPlatformOLD.gd" id="4_0hgl0"]
+[ext_resource type="Script" uid="uid://ce1tsde0jdaka" path="res://scripts/ui/UiManager.cs" id="2_qmux8"]
+[ext_resource type="Script" uid="uid://bwqwua4dlauj" path="res://scripts/ui/LobbyListUI.cs" id="3_llh4u"]
+[ext_resource type="Script" uid="uid://08tiiunwdnrd" path="res://unused/EOStestPlatformOLD.gd" id="4_0hgl0"]
 
 [node name="Node" type="Node"]
 
