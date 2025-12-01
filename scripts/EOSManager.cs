@@ -230,6 +230,29 @@ public partial class EOSManager : Node
 	{
 		GD.Print("🚪 Player was kicked from lobby - cleaning up and returning to main menu...");
 
+		// Pokaż popup z informacją o wyrzuceniu
+		if (GetTree() != null && GetTree().Root != null)
+		{
+			var popup = new AcceptDialog();
+			popup.DialogText = "Zostałeś wyrzucony przez hosta!";
+			popup.Title = "Wyrzucony";
+			popup.OkButtonText = "OK";
+
+			// Zamknij popup i wróć do menu po kliknięciu OK
+			popup.Confirmed += () =>
+			{
+				popup.QueueFree();
+				if (GetTree() != null)
+				{
+					GetTree().ChangeSceneToFile("res://scenes/menu/main.tscn");
+				}
+			};
+
+			// Dodaj do root i wyświetl
+			GetTree().Root.AddChild(popup);
+			popup.PopupCentered();
+		}
+
 		// Zatrzymaj timer odświeżania jeśli jeszcze działa
 		if (lobbyRefreshTimer != null && lobbyRefreshTimer.TimeLeft > 0)
 		{
@@ -239,7 +262,7 @@ public partial class EOSManager : Node
 
 		// NIE wywołujemy LeaveLobby() - serwer EOS już zamknął połączenie websocket
 		// Bezpośrednio czyścimy lokalny stan (tak jak robi OnLeaveLobbyComplete)
-		
+
 		// Wyczyść obecne lobby
 		currentLobbyId = null;
 		isLobbyOwner = false;
@@ -254,21 +277,15 @@ public partial class EOSManager : Node
 
 		// Wyczyść cache członków
 		currentLobbyMembers.Clear();
-		
+
 		// Wyczyść flagę tworzenia
 		isCreatingLobby = false;
-		
+
 		// Wyczyść wymuszone przypisania drużyn
 		forcedTeamAssignments.Clear();
 
 		// Wyślij sygnał do UI
 		EmitSignal(SignalName.LobbyLeft);
-
-		// Wróć do menu głównego
-		if (GetTree() != null)
-		{
-			GetTree().ChangeSceneToFile("res://scenes/menu/main.tscn");
-		}
 	}
 
 	private void CreateLobbyRefreshTimer()
@@ -884,7 +901,7 @@ public partial class EOSManager : Node
 			currentLobbyMembers = tempMembersList;
 
 			EmitSignal(SignalName.LobbyMembersUpdated, tempMembersList);
-			GD.Print($"👥 Sent initial member list (1 member - you)"); // Możesz teraz ustawić atrybuty lobby (nazwa, mapa, tryb gry itp.)													
+			GD.Print($"👥 Sent initial member list (1 member - you)"); // Możesz teraz ustawić atrybuty lobby (nazwa, mapa, tryb gry itp.)
 		}
 		else
 		{
@@ -1383,7 +1400,7 @@ public partial class EOSManager : Node
 			return;
 		}
 
-		// ⚠️ NIE nadpisuj handle jeśli już działa! 
+		// ⚠️ NIE nadpisuj handle jeśli już działa!
 		// Handle z WebSocket (member_update) ma pełne dane, a ten z search może być pusty
 		if (!foundLobbyDetails.ContainsKey(currentLobbyId))
 		{
@@ -1549,7 +1566,7 @@ public partial class EOSManager : Node
 		if (data.ResultCode == Result.Success)
 		{
 			GD.Print($"✅ Successfully kicked player from lobby: {data.LobbyId}");
-			
+
 			// Odśwież cache i listę członków po kicku
 			GetTree().CreateTimer(0.3).Timeout += () =>
 			{
@@ -1600,7 +1617,7 @@ public partial class EOSManager : Node
 		{
 			CacheCurrentLobbyDetailsHandle("lobby_update");
 			RefreshCurrentLobbyInfo();
-			
+
 			// Sprawdź i zastosuj wymuszone przypisania drużyn (dla nie-hostów)
 			if (!isLobbyOwner)
 			{
@@ -2113,7 +2130,7 @@ public partial class EOSManager : Node
 			if (data.ResultCode == Result.Success)
 			{
 				GD.Print($"✅ Member attribute '{key}' set successfully: '{value}'");
-				
+
 				// Natychmiastowe odświeżenie lokalnego cache i listy członków
 				GetTree().CreateTimer(0.1).Timeout += () =>
 				{
@@ -2194,12 +2211,12 @@ public partial class EOSManager : Node
 		string localUserId = localProductUserId.ToString();
 		GD.Print($"🔍 Checking forced team assignments for {localUserId.Substring(Math.Max(0, localUserId.Length - 8))}");
 		GD.Print($"   Total forced assignments: {forcedTeamAssignments.Count}");
-		
+
 		if (forcedTeamAssignments.TryGetValue(localUserId, out string forcedTeam) && !string.IsNullOrEmpty(forcedTeam))
 		{
 			string currentTeam = GetTeamForUser(localUserId);
 			GD.Print($"   Found force request: Current={currentTeam}, Forced={forcedTeam}");
-			
+
 			if (!string.Equals(currentTeam, forcedTeam, StringComparison.OrdinalIgnoreCase))
 			{
 				GD.Print($"🎯 Host forced you to switch to {forcedTeam}, applying change...");
