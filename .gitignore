@@ -1,20 +1,13 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
-.nomedia
 
-# Godot-specific ignores
-.import/
-export.cfg
-export_credentials.cfg
+# Lokalny, niewysyłany folder dla gry, bo czemu nie
+_ExportedGameLocal
 
-# Imported translations (automatically generated from CSV files)
-*.translation
 
-# Mono-specific ignores
-.mono/
-data_*/
-mono_crash.*.json
+
+# Z FORKA
 
 # Visual studio ignores
 .vs/

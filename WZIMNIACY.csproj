@@ -5,9 +5,15 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
   </PropertyGroup>
 
+
   <PropertyGroup>
     <!-- <DefineConstants>$(DefineConstants);GODOT;GODOT_WINDOWS;GODOT_64;EOS_GODOT</DefineConstants> -->
     <DefineConstants>$(DefineConstants);GODOT_64</DefineConstants>
     <!-- <DefineConstants>$(DefineConstants);GODOT_32</DefineConstants> -->
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Unused/**/*.*"/>
+  </ItemGroup>
+
 </Project>
