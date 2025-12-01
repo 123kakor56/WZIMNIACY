@@ -85,6 +85,20 @@ public partial class LobbyMenu : Control
         blueTeamJoinButton = GetNode<Button>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/BlueTeamPanel/BlueTeamContainer/BlueTeamJoinButton");
         redTeamJoinButton = GetNode<Button>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/RedTeamPanel/RedTeamContainer/RedTeamJoinButton");
 
+        // Pobierz przyciski do dołączania do drużyn
+        blueTeamJoinButton = GetNode<Button>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/BlueTeamPanel/BlueTeamContainer/BlueTeamJoinButton");
+        redTeamJoinButton = GetNode<Button>("Panel/CenterContainer/LobbyMainContainer/LobbyContentContainer/LobbyTeamsContainer/RedTeamPanel/RedTeamContainer/RedTeamJoinButton");
+
+        // Podłącz przyciski drużyn
+        if (blueTeamJoinButton != null)
+        {
+            blueTeamJoinButton.Pressed += OnJoinBlueTeamPressed;
+        }
+        if (redTeamJoinButton != null)
+        {
+            redTeamJoinButton.Pressed += OnJoinRedTeamPressed;
+        }
+
         // Podłącz obsługę prawego kliknięcia dla hosta! >:3
         if (blueTeamList != null)
         {
@@ -229,7 +243,8 @@ public partial class LobbyMenu : Control
                 blueTeamList.SetItemMetadata(index, new Godot.Collections.Dictionary
                 {
                     { "userId", userId },
-                    { "isLocalPlayer", isLocalPlayer }
+                    { "isLocalPlayer", isLocalPlayer },
+                    { "team", team }
                 });
                 GD.Print($"  ➕ Blue: {displayName}");
             }
@@ -239,7 +254,8 @@ public partial class LobbyMenu : Control
                 redTeamList.SetItemMetadata(index, new Godot.Collections.Dictionary
                 {
                     { "userId", userId },
-                    { "isLocalPlayer", isLocalPlayer }
+                    { "isLocalPlayer", isLocalPlayer },
+                    { "team", team }
                 });
                 GD.Print($"  ➕ Red: {displayName}");
             }
@@ -491,6 +507,24 @@ public partial class LobbyMenu : Control
         GetTree().ChangeSceneToFile("res://scenes/menu/main.tscn");
     }
 
+    private void OnJoinBlueTeamPressed()
+    {
+        if (eosManager != null)
+        {
+            GD.Print("🔵 Joining Blue team...");
+            eosManager.SetMyTeam("Blue");
+        }
+    }
+
+    private void OnJoinRedTeamPressed()
+    {
+        if (eosManager != null)
+        {
+            GD.Print("🔴 Joining Red team...");
+            eosManager.SetMyTeam("Red");
+        }
+    }
+
     private async void CreateLobbyWithRetry(int attempt = 0)
     {
         // Sprawdź czy użytkownik jest już zalogowany
@@ -642,9 +676,10 @@ public partial class LobbyMenu : Control
                         {
                             string userId = metadata["userId"].ToString();
                             string displayName = teamList.GetItemText(clickedIndex);
+                            string playerTeam = metadata.ContainsKey("team") ? metadata["team"].ToString() : "";
 
                             GD.Print($"🖱️ Right-clicked on player: {displayName} ({userId})");
-                            ShowKickPopup(userId, displayName, mouseEvent.GlobalPosition);
+                            ShowMemberActionsPopup(userId, displayName, playerTeam, mouseEvent.GlobalPosition);
                         }
                     }
                 }
@@ -652,24 +687,47 @@ public partial class LobbyMenu : Control
         }
     }
 
-    private void ShowKickPopup(string userId, string displayName, Vector2 globalPosition)
+    private void ShowMemberActionsPopup(string userId, string displayName, string currentTeam, Vector2 globalPosition)
     {
+        GD.Print($"📋 Creating popup menu for {displayName}");
+        
         // Stwórz PopupMenu
         var popup = new PopupMenu();
-        popup.AddItem($"👢 Wyrzuc {displayName}", 0);
+        popup.AddItem("🔵 Przenieś do Niebieskich", 0);
+        popup.SetItemDisabled(0, currentTeam == "Blue");
+        popup.AddItem("🔴 Przenieś do Czerwonych", 1);
+        popup.SetItemDisabled(1, currentTeam == "Red");
+        popup.AddSeparator();
+        popup.AddItem($"👢 Wyrzuć {displayName}", 3);  // Index 3 (po separatorze który nie ma indeksu)
+
         popup.IndexPressed += (index) =>
         {
-            if (index == 0)
+            GD.Print($"📋 Popup menu item {index} pressed for {displayName}");
+            
+            switch (index)
             {
-                GD.Print($"👢 Kicking player: {displayName}");
-                eosManager.KickPlayer(userId);
+                case 0:
+                    GD.Print($"🔁 Moving player {displayName} to Blue via popup");
+                    eosManager.MovePlayerToTeam(userId, "Blue");
+                    break;
+                case 1:
+                    GD.Print($"🔁 Moving player {displayName} to Red via popup");
+                    eosManager.MovePlayerToTeam(userId, "Red");
+                    break;
+                case 3:  // Kick - index po separatorze
+                    GD.Print($"👢 Kicking player: {displayName}");
+                    eosManager.KickPlayer(userId);
+                    break;
             }
+
             popup.QueueFree();
         };
 
         // Dodaj do drzewa i pokaż
-        AddChild(popup);
+        GetTree().Root.AddChild(popup);
         popup.Position = (Vector2I)globalPosition;
-        popup.Popup();
+        popup.PopupOnParent(new Rect2I(popup.Position, new Vector2I(1, 1)));
+        
+        GD.Print($"📋 Popup shown at position {globalPosition}");
     }
 }
