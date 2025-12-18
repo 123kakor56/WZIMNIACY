@@ -1,0 +1,6 @@
+{
+    "files.trimTrailingWhitespace": true,
+    "editor.formatOnType": false,
+    "editor.detectIndentation": false,
+    "editor.insertSpaces": false
+}
