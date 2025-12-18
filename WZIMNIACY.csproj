@@ -10,4 +10,8 @@
     <DefineConstants>$(DefineConstants);GODOT_64</DefineConstants>
     <!-- <DefineConstants>$(DefineConstants);GODOT_32</DefineConstants> -->
   </PropertyGroup>
+  
+  <ItemGroup>
+    <Compile Remove="unused/**/*.*"/>
+  </ItemGroup>
 </Project>
