@@ -31,6 +31,10 @@ public partial class LobbyMenu : Control
     [Export] private Label lobbyStatusLabel;
     [Export] private Label lobbyStatusCounter;
 
+    // Custom tooltip
+    private CustomTooltip customTooltip;
+    private string lobbyReadyTooltip = "";
+
     private string currentLobbyCode = "";
     private const int LobbyCodeLength = 6;
     private const int LobbyMaxPlayers = 10;
@@ -97,6 +101,15 @@ public partial class LobbyMenu : Control
         if (startGameButton != null)
         {
             startGameButton.Pressed += OnStartGamePressed;
+            startGameButton.MouseEntered += OnReadyTooltipMouseEntered;
+            startGameButton.MouseExited += OnReadyTooltipMouseExited;
+        }
+
+        if (lobbyStatusCounter != null)
+        {
+            lobbyStatusCounter.MouseFilter = MouseFilterEnum.Stop;
+            lobbyStatusCounter.MouseEntered += OnReadyTooltipMouseEntered;
+            lobbyStatusCounter.MouseExited += OnReadyTooltipMouseExited;
         }
 
         if (blueTeamList != null)
@@ -184,6 +197,28 @@ public partial class LobbyMenu : Control
 
         // Domyślnie odblokuj przyciski dołączania zanim spłyną dane z EOS
         UpdateTeamButtonsState(EOSManager.Team.None);
+
+        // Załaduj custom tooltip ze sceny
+        LoadCustomTooltip();
+    }
+
+    /// <summary>
+    /// Ładuje custom tooltip ze sceny
+    /// </summary>
+    private void LoadCustomTooltip()
+    {
+        var tooltipScene = GD.Load<PackedScene>("res://scenes/components/tooltip.tscn");
+        if (tooltipScene != null)
+        {
+            customTooltip = tooltipScene.Instantiate<CustomTooltip>();
+            AddChild(customTooltip);
+        }
+    }
+
+    // Tooltip aktualizuje swoją pozycję sam w swoim _Process
+    public override void _Process(double delta)
+    {
+        base._Process(delta);
     }
 
     /// <summary>
@@ -707,6 +742,63 @@ public partial class LobbyMenu : Control
     }
 
     /// <summary>
+    /// Włącza normalny styl przycisku "Rozpocznij grę"
+    /// </summary>
+    private void EnableStartGameButtonStyle()
+    {
+        if (startGameButton == null || leaveLobbyButton == null)
+            return;
+
+        startGameButton.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
+        startGameButton.MouseFilter = Control.MouseFilterEnum.Stop;
+        startGameButton.Modulate = new Color(1, 1, 1); // Normalny kolor
+
+        // Przywróć domyślny styl
+        var normalStyle = leaveLobbyButton.GetThemeStylebox("normal");
+        var hoverStyle = leaveLobbyButton.GetThemeStylebox("hover");
+        var pressedStyle = leaveLobbyButton.GetThemeStylebox("pressed");
+        var focusStyle = leaveLobbyButton.GetThemeStylebox("focus");
+        var fontHoverColor = leaveLobbyButton.GetThemeColor("font_hover_color");
+
+        if (normalStyle != null)
+            startGameButton.AddThemeStyleboxOverride("normal", normalStyle);
+        if (hoverStyle != null)
+            startGameButton.AddThemeStyleboxOverride("hover", hoverStyle);
+        if (pressedStyle != null)
+            startGameButton.AddThemeStyleboxOverride("pressed", pressedStyle);
+        if (focusStyle != null)
+            startGameButton.AddThemeStyleboxOverride("focus", focusStyle);
+
+        startGameButton.AddThemeColorOverride("font_hover_color", fontHoverColor);
+    }
+
+    /// <summary>
+    /// Wyłącza styl przycisku "Rozpocznij grę" (disabled look)
+    /// </summary>
+    private void DisableStartGameButtonStyle()
+    {
+        if (startGameButton == null)
+            return;
+
+        startGameButton.MouseDefaultCursorShape = Control.CursorShape.Forbidden;
+        startGameButton.MouseFilter = Control.MouseFilterEnum.Stop;
+        startGameButton.Modulate = new Color(0.5f, 0.5f, 0.5f); // Szary (disabled)
+
+        var normalStyle = startGameButton.GetThemeStylebox("normal");
+        if (normalStyle != null)
+        {
+            startGameButton.AddThemeStyleboxOverride("hover", normalStyle);
+            startGameButton.AddThemeStyleboxOverride("pressed", normalStyle);
+            startGameButton.AddThemeStyleboxOverride("focus", normalStyle);
+        }
+
+        var whiteFontColor = new Color(1, 1, 1); // Biały
+        startGameButton.AddThemeColorOverride("font_color", whiteFontColor);
+        startGameButton.AddThemeColorOverride("font_hover_color", whiteFontColor);
+        startGameButton.AddThemeColorOverride("font_pressed_color", whiteFontColor);
+    }
+
+    /// <summary>
     /// Aktualizuje wyświetlanie statusu lobby
     /// </summary>
     private void UpdateLobbyStatusDisplay(bool isReady)
@@ -718,6 +810,7 @@ public partial class LobbyMenu : Control
 
         if (isHost)
         {
+            List<string> unmetConditions = new List<string>();
             // Host widzi szczegółowy status
             if (isReady)
             {
@@ -732,17 +825,13 @@ public partial class LobbyMenu : Control
                 lobbyStatusLabel.Text = "Gra gotowa";
                 lobbyStatusLabel.Modulate = new Color(0, 1, 0); // Zielony
 
-                if (startGameButton != null)
-                {
-                    startGameButton.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
-                    startGameButton.MouseFilter = Control.MouseFilterEnum.Stop;
-                    startGameButton.Modulate = new Color(1, 1, 1); // Normalny kolor
-                }
+                // Wyczyść tooltip dla gotowego lobby
+                lobbyReadyTooltip = "";
+
+                EnableStartGameButtonStyle();
             }
             else
             {
-                var unmetConditions = new System.Collections.Generic.List<string>();
-
                 if (!LobbyStatus.gameModeSet)
                     unmetConditions.Add("Nie wybrano trybu gry");
 
@@ -763,6 +852,8 @@ public partial class LobbyMenu : Control
 
                 if (unmetConditions.Count > 0)
                 {
+                    lobbyReadyTooltip = string.Join("\n", unmetConditions);
+
                     int totalCount = unmetConditions.Count;
                     if (lobbyStatusCounter != null)
                     {
@@ -782,12 +873,7 @@ public partial class LobbyMenu : Control
                     lobbyStatusLabel.Modulate = new Color(0.7f, 0.7f, 0.7f); // Szary
                 }
 
-                if (startGameButton != null)
-                {
-                    startGameButton.MouseDefaultCursorShape = Control.CursorShape.Arrow;
-                    startGameButton.MouseFilter = Control.MouseFilterEnum.Ignore;
-                    startGameButton.Modulate = new Color(0.5f, 0.5f, 0.5f); // Szary (disabled)
-                }
+                DisableStartGameButtonStyle();
             }
 
             GD.Print($"📊 Host Status: {(lobbyStatusCounter != null ? lobbyStatusCounter.Text : "")} {lobbyStatusLabel.Text}");
@@ -1122,6 +1208,22 @@ public partial class LobbyMenu : Control
     private void OnRedTeamJoinButtonPressed()
     {
         TryJoinTeam(EOSManager.Team.Red);
+    }
+
+    private void OnReadyTooltipMouseEntered()
+    {
+        if (customTooltip != null && !string.IsNullOrEmpty(lobbyReadyTooltip))
+        {
+            customTooltip.Show(lobbyReadyTooltip);
+        }
+    }
+
+    private void OnReadyTooltipMouseExited()
+    {
+        if (customTooltip != null)
+        {
+            customTooltip.Hide();
+        }
     }
 
     private void OnLeaveTeamButtonPressed()
@@ -1468,6 +1570,18 @@ public partial class LobbyMenu : Control
         if (aiAPIKeyInput != null)
         {
             aiAPIKeyInput.TextChanged -= OnAPIKeyTextChanged;
+        }
+
+        if (startGameButton != null)
+        {
+            startGameButton.MouseEntered -= OnReadyTooltipMouseEntered;
+            startGameButton.MouseExited -= OnReadyTooltipMouseExited;
+        }
+
+        if (lobbyStatusCounter != null)
+        {
+            lobbyStatusCounter.MouseEntered -= OnReadyTooltipMouseEntered;
+            lobbyStatusCounter.MouseExited -= OnReadyTooltipMouseExited;
         }
 
         if (blueTeamJoinButton != null)
