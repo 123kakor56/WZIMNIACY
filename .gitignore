@@ -16,3 +16,6 @@ _ExportedGameLocal/*
 
 #MacOS specific ignores
 .DS_Store
+
+**/obj/
+**/bin/
