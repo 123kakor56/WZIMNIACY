@@ -62,8 +62,8 @@ func CreateAndLoginGDEOS() -> void:
 
 
 func _on_connect_login_callback(DictionaryVar):
-	print(DictionaryVar)
-	print(EOSGRuntime.local_product_user_id)
+	print_rich(str("[color=red][GD EOS LOGIN] Result: ", DictionaryVar))
+	print_rich(str("[color=red][GD EOS LOGIN] LocalProdutUserID: ", EOSGRuntime.local_product_user_id))
 
 	var EOSGpeer: EOSGMultiplayerPeer = EOSGMultiplayerPeer.new()
 
