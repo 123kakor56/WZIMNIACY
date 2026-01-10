@@ -29,7 +29,7 @@ public partial class EOSManagerInteropTest : Node
 		// a.CreateClient("test", "test1");
 		// Multiplayer.MultiplayerPeer = a;
 		// EosgMultiplayerPeer a = (EosgMultiplayerPeer)Multiplayer.MultiplayerPeer;
-		GD.Print("InteropTest peer connected (server peer id should be 1)");
+		GD.PrintRich("[color=red]InteropTest peer connected (server peer id should be 1)");
 
 		if (Multiplayer.IsServer())
     	{
@@ -58,6 +58,6 @@ public partial class EOSManagerInteropTest : Node
 	private void PrintOncePerClientWithString(string message)
 	{
 		int senderId = Multiplayer.GetRemoteSenderId();
-		GD.PrintRich("[color=red]INTEROP TEST RPC WITH STRING RECEIVED FROM PEER ID: " + senderId + "MESSAGE: " + message);
+		GD.PrintRich("[color=red]INTEROP TEST RPC WITH STRING RECEIVED FROM PEER ID: " + senderId + " MESSAGE: " + message);
 	}
 }
