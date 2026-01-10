@@ -12,6 +12,8 @@ using Epic.OnlineServices.Lobby;
 
 public partial class EOSManager : Node
 {
+	Node EOSInteropTestGD;
+
 	// Sygnały dla UI
 	[Signal]
 	public delegate void LobbyListUpdatedEventHandler(Godot.Collections.Array<Godot.Collections.Dictionary> lobbies);
@@ -300,6 +302,8 @@ public partial class EOSManager : Node
 	public override void _Ready()
 	{
 		base._Ready();
+
+		EOSInteropTestGD = GetNode("/root/Main/EOSInteropTestGD");
 
 		// Opcjonalne opóźnienie sieci (do testów)
 		// uzycie: --delay-networking=value_in_ms dla kazdej instancji w cmdline
@@ -650,6 +654,8 @@ public partial class EOSManager : Node
 		{
 			GD.Print($"✅ P2P Login successful! ProductUser ID: {data.LocalUserId}");
 			localProductUserId = data.LocalUserId;
+
+			EOSInteropTestGD.Call("CreateAndLoginGDEOS");
 
 			// Gotowe do tworzenia lobby!
 			GD.Print("🎮 Ready to create/join lobbies!");
