@@ -6,11 +6,18 @@ extends Node
 
 @export var CSNode: Node
 
+@export var ClientJoinUI: Control
+@export var RemoteUserIdLineEdit: LineEdit
+
 @export var StartServer: bool
 
-@export var UserSocketId: String
+# SocketId to nie jest ID żadnego usera bo mi się tak wydawało z jakiegoś powodu, to trochę taki bucket
+@export var SocketId: String
 
 @export var RemoteUserId: String
+
+var EOSGpeer: EOSGMultiplayerPeer
+var isReady: bool
 
 # Called when the node enters the scene tree for the first time.
 func CreateAndLoginGDEOS() -> void:
@@ -65,31 +72,61 @@ func _on_connect_login_callback(DictionaryVar):
 	print_rich(str("[color=red][GD EOS LOGIN] Result: ", DictionaryVar))
 	print_rich(str("[color=red][GD EOS LOGIN] LocalProdutUserID: ", EOSGRuntime.local_product_user_id))
 
-	var EOSGpeer: EOSGMultiplayerPeer = EOSGMultiplayerPeer.new()
+	EOSGpeer = EOSGMultiplayerPeer.new()
+	print(EOSGpeer)
+	isReady = true
 
-	if StartServer:
-		EOSGpeer.create_server(UserSocketId)
-	else:
-		EOSGpeer.create_client(UserSocketId, RemoteUserId)
+	if StartServer || OS.has_feature("server"):
+		print_rich("[color=red]STARTING AND CREATING SERVER")
+		StartServer = true
+		EOSGpeer.create_server(SocketId)
+		multiplayer.multiplayer_peer = EOSGpeer
+	elif !StartServer || OS.has_feature("client"):
+		print_rich("[color=red]STARTING CLIENT")
+		# UserSocketId = "test2"
+		# RemoteUserId = EOSGRuntime.local_product_user_id
+		# await get_tree().create_timer(20).timeout
+		# EOSGpeer.create_client(SocketId, RemoteUserId)
+		ClientJoinUI.visible = true
 
 	# var EOSGpeer = EOSGMultiplayerPeer.new()
 	# EOSGpeer.create_client("test", "test")
-	multiplayer.multiplayer_peer = EOSGpeer
+	# multiplayer.multiplayer_peer = EOSGpeer
 
 	EOSGpeer.peer_connected.connect(_on_peer_connected)
 
 	# CSNode.InteropTest()
 	#pass
 
-func _on_peer_connected(DictionaryVar):
+func _on_peer_connected(peerId):
+	print_rich(str("[color=red]Peer connected with ID: ", peerId))
 	CSNode.InteropTest()
 	# pass
 
+func _on_join_remote_user_id_pressed() -> void:
+	if EOSGpeer.get_connection_status() == EOSGpeer.ConnectionStatus.CONNECTION_DISCONNECTED:
+		RemoteUserId = RemoteUserIdLineEdit.text
+		print_rich(str("[color=red]Trying to connect to a server with UserId: ", RemoteUserId, " using SocketId: ", SocketId))
+		EOSGpeer.create_client(SocketId, RemoteUserId)
+		multiplayer.multiplayer_peer = EOSGpeer
+	else:
+		print_rich("[color=red]Already trying to connect")
+	# pass # Replace with function body.
+
+
+
+# ADDON MA DOMYŚLNIE WŁĄCZONĄ AUTOAKCEPTACJĘ
+# func _process(delta: float) -> void:
+# 	# print(EOSGpeer)
+# 	if isReady:
+# 		EOSGpeer.accept_all_connection_requests()
 
 func log_eos(log_message: Dictionary) -> void:
 	#print_rich("[color=red]" + log_message.category);
 	print_rich("[color=yellow]" + log_message.message)
 	#pass
+
+
 
 
 
@@ -134,4 +171,3 @@ func _on_create_lobby_3_pressed() -> void:
 	count = lobby_search.get_search_result_count()
 	#print(lobby_search_result.lobby_search)
 	print(str(count) + "WZIMNIACpo")
-	# Replace with function body.

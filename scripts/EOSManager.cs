@@ -9,6 +9,7 @@ using Epic.OnlineServices.Logging;
 using Epic.OnlineServices.Auth;
 using Epic.OnlineServices.Connect;
 using Epic.OnlineServices.Lobby;
+using System.Threading.Tasks;
 
 public partial class EOSManager : Node
 {
@@ -299,8 +300,31 @@ public partial class EOSManager : Node
 	}
 
 	// Called when the node enters the scene tree for the first time.
-	public override void _Ready()
+	public async override void _Ready()
 	{
+		// IDK CZEMU TO NIE DZIAŁA, NIC NIE PODAJE
+		// var userArgs = OS.GetCmdlineUserArgs();
+		string[] launchArgs = OS.GetCmdlineArgs();
+		// GD.Print(launchArgs);
+		foreach (string value in launchArgs)
+		{
+			// GD.Print(value);
+			if (value.Contains("--delayEOS=", StringComparison.OrdinalIgnoreCase))
+			{
+				int delaySeconds = value.Substring("--delayEOS=".Length).ToInt();
+				if (delaySeconds >= -1)
+				{
+					GD.Print("Delayed EOS launch for " + delaySeconds + " seconds");
+					await Task.Delay(delaySeconds * 1000);
+					break;
+				}
+			}
+		}
+		// if (OS.HasFeature("client"))
+		// {
+		// 	// await Task.Delay(10000);
+		// }
+
 		base._Ready();
 
 		EOSInteropTestGD = GetNode("/root/Main/EOSInteropTestGD");
