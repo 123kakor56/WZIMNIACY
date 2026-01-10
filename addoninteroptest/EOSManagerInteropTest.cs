@@ -2,8 +2,8 @@ using Godot;
 
 public partial class EOSManagerInteropTest : Node
 {
-	[Export]
-	public Node test;
+	// [Export]
+	// public Node test;
 
 
 	public override void _Ready()
