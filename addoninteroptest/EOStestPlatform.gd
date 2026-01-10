@@ -60,6 +60,7 @@ func CreateAndLoginGDEOS() -> void:
 	EOS.get_instance().connect_interface_login_callback.connect(_on_connect_login_callback)
 
 
+
 func _on_connect_login_callback(DictionaryVar):
 	print(DictionaryVar)
 	print(EOSGRuntime.local_product_user_id)
@@ -67,23 +68,28 @@ func _on_connect_login_callback(DictionaryVar):
 	var EOSGpeer: EOSGMultiplayerPeer = EOSGMultiplayerPeer.new()
 
 	if StartServer:
-		EOSGpeer.create_client(UserSocketId, RemoteUserId)
-	else:
 		EOSGpeer.create_server(UserSocketId)
+	else:
+		EOSGpeer.create_client(UserSocketId, RemoteUserId)
 
 	# var EOSGpeer = EOSGMultiplayerPeer.new()
 	# EOSGpeer.create_client("test", "test")
 	multiplayer.multiplayer_peer = EOSGpeer
+
+	EOSGpeer.peer_connected.connect(_on_peer_connected)
+
+	# CSNode.InteropTest()
+	#pass
+
+func _on_peer_connected(DictionaryVar):
 	CSNode.InteropTest()
-
-
-#pass
+	# pass
 
 
 func log_eos(log_message: Dictionary) -> void:
 	#print_rich("[color=red]" + log_message.category);
 	print_rich("[color=yellow]" + log_message.message)
-#pass
+	#pass
 
 
 

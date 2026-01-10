@@ -1,5 +1,4 @@
 using Godot;
-using System;
 
 public partial class EOSManagerInteropTest : Node
 {
@@ -30,7 +29,35 @@ public partial class EOSManagerInteropTest : Node
 		// a.CreateClient("test", "test1");
 		// Multiplayer.MultiplayerPeer = a;
 		// EosgMultiplayerPeer a = (EosgMultiplayerPeer)Multiplayer.MultiplayerPeer;
-		GD.Print("test");
+		GD.Print("InteropTest peer connected (server peer id should be 1)");
+
+		if (Multiplayer.IsServer())
+    	{
+        	Rpc(MethodName.PrintOncePerClient);
+
+			Rpc(MethodName.PrintOncePerClientWithString, "WIADOMOŚĆ Z SERWERA DO WSZYSTKICH 67 420 69 DZIAŁA");
+    	}
+		else
+		{
+			Rpc(MethodName.PrintOncePerClient);
+
+			Rpc(MethodName.PrintOncePerClientWithString, "WIADOMOŚĆ Z KLIENTA DO WSZYSTKICH 67 420 69 DZIAŁA");
+		}
 	}
 
+	// CallLocal domyślne jest false ale tak dla jasności żeby pokazać
+	// Peer ID serwera powinno być 1
+	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false)]
+	private void PrintOncePerClient()
+	{
+		int senderId = Multiplayer.GetRemoteSenderId();
+		GD.PrintRich("[color=red]INTEROP TEST RPC RECEIVED FROM PEER ID: " + senderId);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false)]
+	private void PrintOncePerClientWithString(string message)
+	{
+		int senderId = Multiplayer.GetRemoteSenderId();
+		GD.PrintRich("[color=red]INTEROP TEST RPC WITH STRING RECEIVED FROM PEER ID: " + senderId + "MESSAGE: " + message);
+	}
 }
