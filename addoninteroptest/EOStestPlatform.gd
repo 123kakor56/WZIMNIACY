@@ -17,7 +17,7 @@ extends Node
 @export var RemoteUserId: String
 
 var EOSGpeer: EOSGMultiplayerPeer
-var isReady: bool
+# var isReady: bool
 
 # Called when the node enters the scene tree for the first time.
 func CreateAndLoginGDEOS() -> void:
@@ -69,12 +69,12 @@ func CreateAndLoginGDEOS() -> void:
 
 
 func _on_connect_login_callback(DictionaryVar):
-	print_rich(str("[color=red][GD EOS LOGIN] Result: ", DictionaryVar))
-	print_rich(str("[color=red][GD EOS LOGIN] LocalProdutUserID: ", EOSGRuntime.local_product_user_id))
+	print_rich(str(OS.has_feature("server"), "[color=red][GD EOS LOGIN] Result: ", DictionaryVar))
+	print_rich(str(OS.has_feature("server"), "[color=red][GD EOS LOGIN] LocalProdutUserID: ", EOSGRuntime.local_product_user_id))
 
 	EOSGpeer = EOSGMultiplayerPeer.new()
-	print(EOSGpeer)
-	isReady = true
+	# print(EOSGpeer)
+	# isReady = true
 
 	if StartServer || OS.has_feature("server"):
 		print_rich("[color=red]STARTING AND CREATING SERVER")
@@ -82,7 +82,7 @@ func _on_connect_login_callback(DictionaryVar):
 		EOSGpeer.create_server(SocketId)
 		multiplayer.multiplayer_peer = EOSGpeer
 	elif !StartServer || OS.has_feature("client"):
-		print_rich("[color=red]STARTING CLIENT")
+		print_rich(OS.has_feature("server"), "[color=red]STARTING CLIENT")
 		# UserSocketId = "test2"
 		# RemoteUserId = EOSGRuntime.local_product_user_id
 		# await get_tree().create_timer(20).timeout
@@ -93,24 +93,29 @@ func _on_connect_login_callback(DictionaryVar):
 	# EOSGpeer.create_client("test", "test")
 	# multiplayer.multiplayer_peer = EOSGpeer
 
-	EOSGpeer.peer_connected.connect(_on_peer_connected)
+	# NIE ŁĄCZYĆ SYGNAŁÓW Z PEERA BO MAJĄ JAKIEŚ PROBLEMY ZE SOBĄ I NIGDZIE NIE MA TEGO UDOKUMENTOWANEGO,
+	# GUBIĄ PIERWSZE RPC BO NIE WIDZĄ PEERÓW PRZEZ CHWILĘ
+	# CZASAMI, ZALEŻNIE OD JAKICHŚ MILISEKUNDOWYCH RÓŻNIC CZY KIJ WIE CZEGO
+	# https://github.com/godotengine/godot/issues/67305
+	# EOSGpeer.peer_connected.connect(_on_peer_connected)
+	multiplayer.peer_connected.connect(_on_peer_connected)
 
 	# CSNode.InteropTest()
 	#pass
 
 func _on_peer_connected(peerId):
-	print_rich(str("[color=red]Peer connected with ID: ", peerId))
+	print_rich(str(OS.has_feature("server"), "[color=red]Peer connected with ID: ", peerId))
 	CSNode.InteropTest()
 	# pass
 
 func _on_join_remote_user_id_pressed() -> void:
 	if EOSGpeer.get_connection_status() == EOSGpeer.ConnectionStatus.CONNECTION_DISCONNECTED:
 		RemoteUserId = RemoteUserIdLineEdit.text
-		print_rich(str("[color=red]Trying to connect to a server with UserId: ", RemoteUserId, " using SocketId: ", SocketId))
+		print_rich(str(OS.has_feature("server"), "[color=red]Trying to connect to a server with UserId: ", RemoteUserId, " using SocketId: ", SocketId))
 		EOSGpeer.create_client(SocketId, RemoteUserId)
 		multiplayer.multiplayer_peer = EOSGpeer
 	else:
-		print_rich("[color=red]Already trying to connect")
+		print_rich("[color=red]Already trying to connect or already connected")
 	# pass # Replace with function body.
 
 

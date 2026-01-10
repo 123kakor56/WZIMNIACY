@@ -29,7 +29,8 @@ public partial class EOSManagerInteropTest : Node
 		// a.CreateClient("test", "test1");
 		// Multiplayer.MultiplayerPeer = a;
 		// EosgMultiplayerPeer a = (EosgMultiplayerPeer)Multiplayer.MultiplayerPeer;
-		GD.PrintRich("[color=red]InteropTest peer connected (server peer id should be 1)");
+		GD.PrintRich(OS.HasFeature("server") + "[color=red]InteropTest on peer ID: " + Multiplayer.MultiplayerPeer.GetUniqueId() + " started, calling RPCs from C#");
+
 
 		if (Multiplayer.IsServer())
     	{
@@ -39,6 +40,7 @@ public partial class EOSManagerInteropTest : Node
     	}
 		else
 		{
+			// GD.Print(Multiplayer.GetPeers());
 			Rpc(MethodName.PrintOncePerClient);
 
 			Rpc(MethodName.PrintOncePerClientWithString, "WIADOMOŚĆ Z KLIENTA DO WSZYSTKICH 67 420 69 DZIAŁA");
@@ -51,13 +53,13 @@ public partial class EOSManagerInteropTest : Node
 	private void PrintOncePerClient()
 	{
 		int senderId = Multiplayer.GetRemoteSenderId();
-		GD.PrintRich("[color=red]INTEROP TEST RPC RECEIVED FROM PEER ID: " + senderId);
+		GD.PrintRich(OS.HasFeature("server") + "[color=red]INTEROP TEST RPC RECEIVED FROM PEER ID: " + senderId);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false)]
 	private void PrintOncePerClientWithString(string message)
 	{
 		int senderId = Multiplayer.GetRemoteSenderId();
-		GD.PrintRich("[color=red]INTEROP TEST RPC WITH STRING RECEIVED FROM PEER ID: " + senderId + " MESSAGE: " + message);
+		GD.PrintRich(OS.HasFeature("server") + "[color=red]INTEROP TEST RPC WITH STRING RECEIVED FROM PEER ID: " + senderId + " MESSAGE: " + message);
 	}
 }
