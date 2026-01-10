@@ -29,7 +29,8 @@ public partial class EOSManagerInteropTest : Node
 		// EosgMultiplayerPeer a = new EosgMultiplayerPeer();
 		// a.CreateClient("test", "test1");
 		// Multiplayer.MultiplayerPeer = a;
-		EosgMultiplayerPeer a = (EosgMultiplayerPeer)Multiplayer.MultiplayerPeer;
+		// EosgMultiplayerPeer a = (EosgMultiplayerPeer)Multiplayer.MultiplayerPeer;
+		GD.Print("test");
 	}
 
 }
