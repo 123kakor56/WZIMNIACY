@@ -5,8 +5,8 @@
 [ext_resource type="FontFile" uid="uid://fx12hnivyylk" path="res://assets/fonts/SpaceMono-Regular.ttf" id="1_ig7tw"]
 [ext_resource type="StyleBox" uid="uid://drl2twqn1nt3b" path="res://assets/buttons/button_border.tres" id="2_0xm2m"]
 [ext_resource type="StyleBox" uid="uid://c01fbiircsfdi" path="res://assets/buttons/button_hover.tres" id="3_1bvp3"]
-[ext_resource type="Script" uid="uid://ds7fs15smja7h" path="res://addoninteroptest/EOStestPlatform.gd" id="6_ec7jh"]
-[ext_resource type="Script" uid="uid://cj3kxugu18eqh" path="res://addoninteroptest/EOSManagerInteropTest.cs" id="7_ec7jh"]
+[ext_resource type="Script" uid="uid://7we50tw5stho" path="res://addoninteroptest/EOStestPlatform.gd" id="6_ec7jh"]
+[ext_resource type="Script" uid="uid://bu5avo4o1rcl" path="res://addoninteroptest/EOSManagerInteropTest.cs" id="7_ec7jh"]
 
 [node name="Main" type="Control"]
 layout_mode = 3
