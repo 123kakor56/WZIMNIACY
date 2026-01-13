@@ -74,6 +74,7 @@ public partial class MainGame : Control
 
     // === P2P (DODANE) ===
     private P2PNetworkManager p2pNet;
+    public P2PNetworkManager P2PNet => p2pNet;
 
     // Przykładowy payload do RPC "card_selected" (logika gry → tu, nie w P2P)
     private sealed class CardSelectedPayload
@@ -102,7 +103,7 @@ public partial class MainGame : Control
     {
         public Team team { get; set; }
     }
-    
+
     private bool p2pJsonTestSent = false;
     // =====================
 
@@ -120,7 +121,7 @@ public partial class MainGame : Control
 
         isGameStarted = false;
 
-        loadingScreen?.ShowLoading();
+        loadingScreen.ShowLoading();
 
         // Ustalanie czy lokalny gracz jest hostem na podstawie właściciela lobby EOS
         isHost = eosManager != null && eosManager.isLobbyOwner;
@@ -196,7 +197,7 @@ public partial class MainGame : Control
             );
         }
 
-        
+
 
     }
 
@@ -268,7 +269,8 @@ public partial class MainGame : Control
 
             return true; // zjedliśmy pakiet
         }
-
+        
+    // -----------------
         // Odebranie infomacji przez hosta o tym ze klient chce pominac ture
         if (packet.type == "skip_turn_pressed" && isHost)
         {
@@ -401,11 +403,11 @@ public partial class MainGame : Control
         }
 
         isGameStarted = true;
-        
+
         if (payload == null || payload.players == null || payload.players.Length == 0)
         {
             GD.PrintErr("[MainGame] ApplyGameStart: payload/players invalid");
-            isGameStarted = false; 
+            isGameStarted = false;
             return;
         }
 
@@ -455,7 +457,7 @@ public partial class MainGame : Control
 
         GD.Print($"[MainGame] GAME START: players={playersByIndex.Count} sessionId={payload.sessionId}");
 
-        loadingScreen?.HideLoading();
+        loadingScreen.HideLoading();
 
         // Assing initianl points and turn
         if (startingTeam == Team.Blue)
@@ -655,7 +657,9 @@ public partial class MainGame : Control
         GD.Print($"{word} [{number}]");
         if (gameRightPanel != null)
         {
-            gameRightPanel.UpdateHintDisplay(word, number, currentTurn == Team.Blue);
+            bool isBlue = currentTurn == Team.Blue;
+            gameRightPanel.UpdateHintDisplay(word, number, isBlue);
+            gameRightPanel.BroadcastHint(word, number, currentTurn);
         }
     }
 
@@ -674,7 +678,7 @@ public partial class MainGame : Control
 
     public void OnSkipTurnPressedHost(string skippedBy)
     {
-        UpdateMaxStreak(); 
+        UpdateMaxStreak();
 
         TurnChange();
 
@@ -822,7 +826,7 @@ public partial class MainGame : Control
     {
         GD.Print("Point removed from team red...");
         pointsRed--;
-        
+
         if (currentTurn == Team.Red)
         {
             currentStreak++;
@@ -910,12 +914,12 @@ public partial class MainGame : Control
                     EndGame(Team.Blue);
                 break;
         }
-        
+
         //Narazie tylko host rozsyła info o usunięciu punktu do klientów
         if(teamToRemovePoint != Team.None && isHost)
         {
             string str = eosManager.localProductUserIdString;
-            ProductUserId fromPeer = ProductUserId.FromString(str); 
+            ProductUserId fromPeer = ProductUserId.FromString(str);
             var ack = new
             {
                 team = teamToRemovePoint
@@ -923,7 +927,7 @@ public partial class MainGame : Control
 
             int sentInit = p2pNet.SendRpcToAllClients("remove_point_ack", ack);
             GD.Print($"[MainGame][P2P-TEST] HOST sent remove_point_ack to all clients number of successful sendings={sentInit}");
-            
+
         }
     }
 
