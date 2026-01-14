@@ -138,53 +138,53 @@ public partial class EOSManager : Node
 	// Wywoływane przez hosta - zapisuje dane sesji do lobby i inicjuje start gry
 	public void RequestStartGameSession()
 	{
-    	if (string.IsNullOrEmpty(currentLobbyId))
-    	{
-        	GD.PrintErr("❌ Cannot start session: not in lobby");
-        	return;
-    	}
-
-    	if (!isLobbyOwner)
-    	{
-        	GD.PrintErr("❌ Only host can start session");
-        	return;
-    	}
-		if (localProductUserId == null || !localProductUserId.IsValid())
+		if (string.IsNullOrEmpty(currentLobbyId))
 		{
-    		GD.PrintErr("❌ Cannot start session: localProductUserId invalid (not logged in yet)");
-    		return;
+			GD.PrintErr("❌ Cannot start session: not in lobby");
+			return;
 		}
 
-    	// 1) Generowanie danych
-    	string sessionId = GenerateSessionId();
-    	ulong seed = (ulong)GD.Randi(); // na razie proste; potem można rozszerzyć
+		if (!isLobbyOwner)
+		{
+			GD.PrintErr("❌ Only host can start session");
+			return;
+		}
+		if (localProductUserId == null || !localProductUserId.IsValid())
+		{
+			GD.PrintErr("❌ Cannot start session: localProductUserId invalid (not logged in yet)");
+			return;
+		}
+
+		// 1) Generowanie danych
+		string sessionId = GenerateSessionId();
+		ulong seed = (ulong)GD.Randi(); // na razie proste; potem można rozszerzyć
 		if (seed == 0) seed = 1;
 
-    	// 2) Zapis danych sesji do lobby EOS - uruchamia synchronizację u wszystkich graczy
-    	SetLobbyAttribute(ATTR_SESSION_ID, sessionId);
-    	SetLobbyAttribute(ATTR_SESSION_SEED, seed.ToString());
-    	SetLobbyAttribute(ATTR_SESSION_HOST, localProductUserId.ToString());
-    	SetLobbyAttribute(ATTR_SESSION_STATE, GameSessionState.Starting.ToString());
+		// 2) Zapis danych sesji do lobby EOS - uruchamia synchronizację u wszystkich graczy
+		SetLobbyAttribute(ATTR_SESSION_ID, sessionId);
+		SetLobbyAttribute(ATTR_SESSION_SEED, seed.ToString());
+		SetLobbyAttribute(ATTR_SESSION_HOST, localProductUserId.ToString());
+		SetLobbyAttribute(ATTR_SESSION_STATE, GameSessionState.Starting.ToString());
 
-    	// 3) lokalnie też ustaw cache
-    	CurrentGameSession.SessionId = sessionId;
+		// 3) lokalnie też ustaw cache
+		CurrentGameSession.SessionId = sessionId;
 		CurrentGameSession.LobbyId = currentLobbyId;
 		CurrentGameSession.Seed = seed;
-    	CurrentGameSession.HostUserId = localProductUserId.ToString();
-    	CurrentGameSession.State = GameSessionState.Starting;
+		CurrentGameSession.HostUserId = localProductUserId.ToString();
+		CurrentGameSession.State = GameSessionState.Starting;
 
-    	// host też powinien przejść dopiero po update lobby,
-    	// więc NIE robimy tu ChangeScene.
-    	GD.Print($"📤 Host requested session start: {sessionId}, seed={seed}");
+		// host też powinien przejść dopiero po update lobby,
+		// więc NIE robimy tu ChangeScene.
+		GD.Print($"📤 Host requested session start: {sessionId}, seed={seed}");
 	}
 
 	//Generuje krótki, czytelny identyfikator sesji gry (debug/ logi/ recconect) 
 	private string GenerateSessionId()
 	{
-    	const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789";
-    	return new string(Enumerable.Range(0, 8)
-        	.Select(_ => chars[Random.Shared.Next(chars.Length)])
-        	.ToArray());
+		const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789";
+		return new string(Enumerable.Range(0, 8)
+			.Select(_ => chars[Random.Shared.Next(chars.Length)])
+			.ToArray());
 	}
 
 	// Przechowywanie znalezionych lobby
@@ -2555,23 +2555,23 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 				//odczyt danych sesji gry zapisanych w atrybutach lobby
 				else if (keyStr != null && keyStr.Equals(ATTR_SESSION_ID, StringComparison.OrdinalIgnoreCase))
 				{
-    				CurrentGameSession.SessionId = valueStr;
+					CurrentGameSession.SessionId = valueStr;
 				}
 				else if (keyStr != null && keyStr.Equals(ATTR_SESSION_SEED, StringComparison.OrdinalIgnoreCase))
 				{
-    				if (!string.IsNullOrEmpty(valueStr) && ulong.TryParse(valueStr, out var parsedSeed))
-        				CurrentGameSession.Seed = parsedSeed;
+					if (!string.IsNullOrEmpty(valueStr) && ulong.TryParse(valueStr, out var parsedSeed))
+						CurrentGameSession.Seed = parsedSeed;
 				}
 				else if (keyStr != null && keyStr.Equals(ATTR_SESSION_HOST, StringComparison.OrdinalIgnoreCase))
 				{
-    				CurrentGameSession.HostUserId = valueStr;
+					CurrentGameSession.HostUserId = valueStr;
 				}
 				else if (keyStr != null && keyStr.Equals(ATTR_SESSION_STATE, StringComparison.OrdinalIgnoreCase))
 				{
-    				if (!string.IsNullOrEmpty(valueStr) && Enum.TryParse<GameSessionState>(valueStr, true, out var parsedState))
-        				CurrentGameSession.State = parsedState;
-    				else
-        				CurrentGameSession.State = GameSessionState.None;
+					if (!string.IsNullOrEmpty(valueStr) && Enum.TryParse<GameSessionState>(valueStr, true, out var parsedState))
+						CurrentGameSession.State = parsedState;
+					else
+						CurrentGameSession.State = GameSessionState.None;
 				}
 			}
 		}
@@ -2600,7 +2600,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 		// Jeśli sesja nie jest w stanie Starting, pozwól na ponowny start w przyszłości
 		if (CurrentGameSession.State != GameSessionState.Starting)
 		{
-    		sessionStartHandled = false;
+			sessionStartHandled = false;
 		}
 
 		bool hasAll = !string.IsNullOrEmpty(CurrentGameSession.SessionId)
@@ -2610,21 +2610,21 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 
 		// Bezpieczne wykrycie startu sesji gry - wykonywane tylko raz na update lobby	
 		if (!string.IsNullOrEmpty(currentLobbyId)
-    		&& CurrentGameSession.State == GameSessionState.Starting
-    		&& hasAll
-    		&& !sessionStartHandled)
+			&& CurrentGameSession.State == GameSessionState.Starting
+			&& hasAll
+			&& !sessionStartHandled)
 		{
-    		sessionStartHandled = true;
+			sessionStartHandled = true;
 
 
-    		GD.Print($"🚀 Session start detected from lobby: {CurrentGameSession.SessionId}, seed={CurrentGameSession.Seed}");
+			GD.Print($"🚀 Session start detected from lobby: {CurrentGameSession.SessionId}, seed={CurrentGameSession.Seed}");
 			GD.Print($"[SESSION DEBUG] currentLobbyId={currentLobbyId} sessionLobbyId={CurrentGameSession.LobbyId} hostUserId={CurrentGameSession.HostUserId} localPuid={localProductUserIdString}");
 
 			EmitSignal(SignalName.GameSessionStartRequested,
-        		CurrentGameSession.SessionId,
-        		CurrentGameSession.HostUserId,
-        		CurrentGameSession.Seed
-    		);
+				CurrentGameSession.SessionId,
+				CurrentGameSession.HostUserId,
+				CurrentGameSession.Seed
+			);
 		}
 
 
@@ -2970,14 +2970,14 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 				
 				// Po udanym update lobby odśwież lokalny cache,
 				// aby klienci zobaczyli nowe atrybuty (np. GameSessionState = strarting)
-    			GetTree().CreateTimer(0.1).Timeout += () =>
-        		{
-            		// 1) odśwież handle (żeby zobaczyć nowe atrybuty)
-            		CacheCurrentLobbyDetailsHandle("refresh_info");
+				GetTree().CreateTimer(0.1).Timeout += () =>
+				{
+					// 1) odśwież handle (żeby zobaczyć nowe atrybuty)
+					CacheCurrentLobbyDetailsHandle("refresh_info");
 
-            		// 2) odśwież info → to wywoła RefreshLobbyAttributes(lobbyDetails)
-            		RefreshCurrentLobbyInfo();
-        		};
+					// 2) odśwież info → to wywoła RefreshLobbyAttributes(lobbyDetails)
+					RefreshCurrentLobbyInfo();
+				};
 			}
 			else
 			{
