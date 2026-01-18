@@ -58,7 +58,6 @@ public partial class EOSManager : Node
 	// Stałe konfiguracyjne
 	private const int MinNicknameLength = 2;
 	private const int MaxNicknameLength = 20;
-	private const int MaxNicknameGenerationAttempts = 10;
 	private const int UserIdDisplayLength = 8;
 	private const int RandomSuffixMax = 10000;
 	private const int NicknameRandomMax = 99;
@@ -94,7 +93,7 @@ public partial class EOSManager : Node
 		set { localProductUserId = ProductUserId.FromString(value); }
 	}  // P2P/Connect ID
 	private EpicAccountId localEpicAccountId;  // Epic Account ID
-	
+
 	// Lokalny cache danych sesji gry odczytanych z atrybtów lobby
 	public GameSessionData CurrentGameSession { get; private set; } = new GameSessionData();
 
@@ -204,6 +203,10 @@ public partial class EOSManager : Node
 
 	// Aktualna lista członków lobby (cache)
 	private Godot.Collections.Array<Godot.Collections.Dictionary> currentLobbyMembers = new Godot.Collections.Array<Godot.Collections.Dictionary>();
+	public Godot.Collections.Array<Godot.Collections.Dictionary> CurrentLobbyMembers
+	{
+		get { return currentLobbyMembers; }
+	}
 
 	// Prefiks atrybutu lobby służącego do wymuszania drużyn przez hosta
 	private const string ForceTeamAttributePrefix = "ForceTeam_";
@@ -243,6 +246,8 @@ public partial class EOSManager : Node
 	private const int MaxPlayersPerTeam = 5;
 	//Limit graczy w trybie AI vs Human (Universal Team)
 	private const int MaxPlayersInAIvsHuman = 5;
+	// Custom popup system
+	private PopupSystem popupSystem;
 
 	// Enum dla drużyn
 	public enum Team
@@ -300,6 +305,9 @@ public partial class EOSManager : Node
 	public override void _Ready()
 	{
 		base._Ready();
+
+		// Załaduj custom popup system
+		LoadPopupSystem();
 
 		// Opcjonalne opóźnienie sieci (do testów)
 		// uzycie: --delay-networking=value_in_ms dla kazdej instancji w cmdline
@@ -440,32 +448,26 @@ public partial class EOSManager : Node
 		// LoginWithDeviceId_P2P();
 	}
 
+	/// <summary>
+	/// Ładuje custom popup system ze sceny
+	/// </summary>
+	private void LoadPopupSystem()
+	{
+		var popupScene = GD.Load<PackedScene>("res://scenes/popup/PopupSystem.tscn");
+		if (popupScene != null)
+		{
+			popupSystem = popupScene.Instantiate<PopupSystem>();
+			AddChild(popupSystem);
+		}
+		else
+		{
+			GD.PrintErr("❌ Failed to load PopupSystem scene");
+		}
+	}
+
 	private void HandleKickedFromLobby()
 	{
 		GD.Print("🚪 Player was kicked from lobby - cleaning up and returning to main menu...");
-
-		// Pokaż popup z informacją o wyrzuceniu
-		if (GetTree() != null && GetTree().Root != null)
-		{
-			var popup = new AcceptDialog();
-			popup.DialogText = "Zostałeś wyrzucony przez hosta!";
-			popup.Title = "Wyrzucony";
-			popup.OkButtonText = "OK";
-
-			// Zamknij popup i wróć do menu po kliknięciu OK
-			popup.Confirmed += () =>
-			{
-				popup.QueueFree();
-				if (GetTree() != null)
-				{
-					GetTree().ChangeSceneToFile("res://scenes/menu/main.tscn");
-				}
-			};
-
-			// Dodaj do root i wyświetl
-			GetTree().Root.AddChild(popup);
-			popup.PopupCentered();
-		}
 
 		// Zatrzymaj timer odświeżania jeśli jeszcze działa
 		if (lobbyRefreshTimer != null && lobbyRefreshTimer.TimeLeft > 0)
@@ -504,6 +506,31 @@ public partial class EOSManager : Node
 
 		// Wyślij sygnał do UI
 		EmitSignal(SignalName.LobbyLeft);
+
+		// Pokaż popup z informacją o wyrzuceniu
+		if (popupSystem != null)
+		{
+			popupSystem.ShowMessage(
+				"WYRZUCONY Z LOBBY",
+				"Zostałeś wyrzucony przez hosta!",
+				() =>
+				{
+					if (GetTree() != null)
+					{
+						GetTree().ChangeSceneToFile("res://scenes/menu/main.tscn");
+					}
+				}
+			);
+		}
+		else
+		{
+			GD.PrintErr("❌ PopupSystem is null, cannot show kicked message");
+			// Fallback - wróć do menu nawet bez popupu
+			if (GetTree() != null)
+			{
+				GetTree().ChangeSceneToFile("res://scenes/menu/main.tscn");
+			}
+		}
 	}
 
 	private void CreateLobbyRefreshTimer()
@@ -880,25 +907,21 @@ public partial class EOSManager : Node
 		}
 
 		// Pobierz listę już zajętych nicków
-		var usedNicknames = new System.Collections.Generic.HashSet<string>();
-		foreach (var member in currentLobbyMembers)
-		{
-			if (member.ContainsKey("displayName"))
-			{
-				usedNicknames.Add(member["displayName"].ToString());
-			}
-		}
+		var usedNicknames = currentLobbyMembers
+			.Where(m => m.ContainsKey("displayName"))
+			.Select(m => m["displayName"].ToString())
+			.ToHashSet();
 
-		// Próbuj wylosować unikalny nick (max 10 prób)
-		for (int attempt = 0; attempt < MaxNicknameGenerationAttempts; attempt++)
-		{
-			string randomAnimal = animalNames[(int)(GD.Randi() % animalNames.Count)];
+		// Znajdź dostępne nicki
+		var availableNicknames = animalNames
+			.Where(name => !usedNicknames.Contains(name))
+			.ToList();
 
-			if (!usedNicknames.Contains(randomAnimal))
-			{
-				GD.Print($"🎲 Wylosowano zwierzaka: {randomAnimal} (próba {attempt + 1}) >w<");
-				return randomAnimal;
-			}
+		if (availableNicknames.Count > 0)
+		{
+			string randomAnimal = availableNicknames[(int)(GD.Randi() % availableNicknames.Count)];
+			GD.Print($"Wylosowano zwierzaka: {randomAnimal} (dostępnych: {availableNicknames.Count}/{animalNames.Count})");
+			return randomAnimal;
 		}
 
 		// Jeśli wszystkie próby się nie powiodły, dodaj losowy sufiks
@@ -999,12 +1022,12 @@ public partial class EOSManager : Node
 		return 0;
 	}
 
-/// <summary>
-/// Zwalnia ikonę profilową gracza
-/// </summary>
-/// <param name="team">Drużyna gracza</param>
-/// <param name="iconNumber">Numer ikony do zwolnienia</param>
-private void ReleaseProfileIcon(Team team, int iconNumber)
+	/// <summary>
+	/// Zwalnia ikonę profilową gracza
+	/// </summary>
+	/// <param name="team">Drużyna gracza</param>
+	/// <param name="iconNumber">Numer ikony do zwolnienia</param>
+	private void ReleaseProfileIcon(Team team, int iconNumber)
 	{
 		if (iconNumber == 0 || team == Team.None)
 			return;
@@ -1032,11 +1055,38 @@ private void ReleaseProfileIcon(Team team, int iconNumber)
 		string colorPrefix = (team == Team.Blue || team == Team.Universal) ? "blue" : "red";
 		return $"res://assets/profilePictures/Prof_{colorPrefix}_{iconNumber}.png";
 	}
+	public string GetProfileIconPathForUser(string userId)
+	{
+		foreach (var member in currentLobbyMembers)
+		{
+			if (member.ContainsKey("userId") && member["userId"].ToString() == userId)
+			{
+				if (member.ContainsKey("profileIcon") && member.ContainsKey("team"))
+				{
+					int iconNumber = member["profileIcon"].As<int>();
+					string teamStr = member["team"].ToString();
+					if (!string.IsNullOrEmpty(teamStr) && Enum.TryParse<Team>(teamStr, out Team team))
+					{
+						// Universal używa niebieskich ikon
+						if (team == Team.Blue || team == Team.Universal)
+						{
+							return GetProfileIconPath(Team.Blue, iconNumber);
+						}
+						else if (team == Team.Red)
+						{
+							return GetProfileIconPath(Team.Red, iconNumber);
+						}
+					}
+				}
+			}
+		}
+		return "";
+	}
 
-	/// <summary>
-	/// Odbudowuje listę używanych ikon na podstawie obecnych członków lobby
-	/// </summary>
-	private void RebuildUsedIcons()
+    /// <summary>
+    /// Odbudowuje listę używanych ikon na podstawie obecnych członków lobby
+    /// </summary>
+    private void RebuildUsedIcons()
 	{
 		usedBlueIcons.Clear();
 		usedRedIcons.Clear();
@@ -1091,9 +1141,9 @@ private void ReleaseProfileIcon(Team team, int iconNumber)
 
 
 
-/// <param name="maxPlayers">Maksymalna liczba graczy (2-64)</param>
-/// <param name="isPublic">Czy lobby jest publiczne (można wyszukać)?</param>
-public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPublic = true)
+	/// <param name="maxPlayers">Maksymalna liczba graczy (2-64)</param>
+	/// <param name="isPublic">Czy lobby jest publiczne (można wyszukać)?</param>
+	public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPublic = true)
 	{
 		if (localProductUserId == null || !localProductUserId.IsValid())
 		{
@@ -2399,7 +2449,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 		bool gameModeFound = false;
 		bool aiTypeFound = false;
 		forcedTeamAssignments.Clear();
-		
+
 		// Reset lokalnych danych sesji przed ponownym odczytem atrybutów lobby
 		CurrentGameSession.SessionId = "";
 		CurrentGameSession.HostUserId = "";
@@ -2566,7 +2616,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 			EmitSignal(SignalName.AITypeUpdated, GetEnumDescription(currentAIType));
 			GD.Print("⚠️ AIType not found, using default: API");
 		}
-		
+
 		// Jeśli sesja nie jest w stanie Starting, pozwól na ponowny start w przyszłości
 		if (CurrentGameSession.State != GameSessionState.Starting)
 		{
@@ -2937,7 +2987,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 			if (data.ResultCode == Result.Success)
 			{
 				GD.Print($"✅ Lobby batch update successful ({updatedKeys.Count} updates, {removedKeys.Count} removals)");
-				
+
 				// Po udanym update lobby odśwież lokalny cache,
 				// aby klienci zobaczyli nowe atrybuty (np. GameSessionState = strarting)
 				GetTree().CreateTimer(0.1).Timeout += () =>
@@ -3130,14 +3180,14 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 
 		// KROK 2: Zbierz wszystkich graczy do przeniesienia
 		var playersToMove = new System.Collections.Generic.List<(string userId, Team oldTeam)>();
-		
+
 		foreach (var member in currentLobbyMembers)
 		{
 			if (!member.ContainsKey("userId"))
 				continue;
 
 			string userId = member["userId"].ToString();
-			
+
 			// Pobierz obecny team
 			Team currentTeam = Team.None;
 			if (member.ContainsKey("team"))
@@ -3161,7 +3211,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 		foreach (var (userId, oldTeam) in playersToMove)
 		{
 			string shortUserId = userId.Length > 8 ? userId.Substring(userId.Length - 8) : userId;
-			
+
 			// Zapisz poprzednią drużynę
 			SavePlayerPreviousTeam(userId, oldTeam);
 
@@ -3181,10 +3231,10 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 			// Ustaw ForceTeam i ForceIcon dla tego gracza
 			forcedTeamAssignments[userId] = Team.Universal;
 			forcedIconAssignments[userId] = assignedIcon;
-			
+
 			SetLobbyAttribute($"{ForceTeamAttributePrefix}{userId}", Team.Universal.ToString());
 			SetLobbyAttribute($"{ForceIconAttributePrefix}{userId}", assignedIcon.ToString());
-			
+
 			GD.Print($"  🎯 {shortUserId}: oldTeam={oldTeam} → Universal, icon={assignedIcon}");
 
 			// Jeśli to host - ustaw od razu swoje MEMBER attributes
@@ -3229,7 +3279,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 
 		// KROK 2: Zbierz wszystkich graczy do przywrócenia i ich poprzednie drużyny
 		var playersToRestore = new System.Collections.Generic.List<(string userId, Team previousTeam, bool isLocal)>();
-		
+
 		foreach (var member in currentLobbyMembers)
 		{
 			if (!member.ContainsKey("userId"))
@@ -3237,7 +3287,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 
 			string userId = member["userId"].ToString();
 			bool isLocalPlayer = userId == localProductUserId.ToString();
-			
+
 			// Pobierz obecny team
 			Team currentTeam = Team.None;
 			if (member.ContainsKey("team"))
@@ -3260,14 +3310,14 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 		// KROK 3: Przypisz ikony PO KOLEI każdemu graczowi według poprzedniej drużyny
 		int blueIconCounter = 1;
 		int redIconCounter = 1;
-		
+
 		foreach (var (userId, previousTeam, isLocalPlayer) in playersToRestore)
 		{
 			string shortUserId = userId.Length > 8 ? userId.Substring(userId.Length - 8) : userId;
-			
+
 			int assignedIcon = 0;
 			Team targetTeam = previousTeam;
-			
+
 			// Jeśli nie ma zapisanej poprzedniej drużyny lub była None/Universal - ustaw None
 			if (previousTeam == Team.None || previousTeam == Team.Universal)
 			{
@@ -3297,7 +3347,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 			forcedTeamAssignments[userId] = targetTeam;
 			string teamValue = (targetTeam == Team.None) ? "" : targetTeam.ToString();
 			SetLobbyAttribute($"{ForceTeamAttributePrefix}{userId}", teamValue);
-			
+
 			if (targetTeam == Team.None)
 			{
 				// Wyczyść ForceIcon
@@ -3309,7 +3359,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 				forcedIconAssignments[userId] = assignedIcon;
 				SetLobbyAttribute($"{ForceIconAttributePrefix}{userId}", assignedIcon.ToString());
 			}
-			
+
 			GD.Print($"  🎯 {shortUserId}: Universal → {targetTeam}, icon={assignedIcon}");
 
 			// Jeśli to host - ustaw od razu swoje MEMBER attributes
@@ -3383,13 +3433,13 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 		}
 
 		string localUserId = localProductUserId.ToString();
-	
-	if (forcedTeamAssignments.TryGetValue(localUserId, out Team forcedTeam))
+
+		if (forcedTeamAssignments.TryGetValue(localUserId, out Team forcedTeam))
 		{
 			// Pobierz obecny zespół i ikonę gracza z currentLobbyMembers (NIE z GetTeamForUser!)
 			Team currentTeam = Team.None;
 			int currentIcon = 0;
-			
+
 			foreach (var member in currentLobbyMembers)
 			{
 				if (member.ContainsKey("isLocalPlayer") && (bool)member["isLocalPlayer"])
@@ -3403,7 +3453,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 							Enum.TryParse(teamStr, out currentTeam);
 						}
 					}
-					
+
 					// Pobierz icon
 					if (member.ContainsKey("profileIcon"))
 					{
@@ -3419,11 +3469,11 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 					break;
 				}
 			}
-			
+
 			// Sprawdź czy host przypisał wymuszoną ikonę
 			int forcedIcon = 0;
 			bool hasForcedIcon = forcedIconAssignments.TryGetValue(localUserId, out forcedIcon);
-			
+
 			// Jeśli już jestem w tym zespole z poprawną ikoną, nie rób nic
 			if (currentTeam == forcedTeam && currentIcon > 0)
 			{
@@ -3440,7 +3490,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 			if (currentTeam != forcedTeam || iconMismatch)
 			{
 				GD.Print($"🎯 Host forced you to switch to {forcedTeam} (currentTeam={currentTeam}, currentIcon={currentIcon}, forcedIcon={forcedIcon})");
-				
+
 				// Użyj wymuszonej ikony jeśli jest, w przeciwnym razie przypisz nową
 				int newIcon;
 				if (hasForcedIcon && forcedIcon > 0)
@@ -3459,7 +3509,7 @@ public void CreateLobby(string customLobbyId, uint maxPlayers = 10, bool isPubli
 				{
 					newIcon = 0;
 				}
-				
+
 				// Gdy forcedTeam == None, ustaw pusty string (nie "None")
 				string teamValue = (forcedTeam == Team.None) ? "" : forcedTeam.ToString();
 				SetMemberAttribute("Team", teamValue);
