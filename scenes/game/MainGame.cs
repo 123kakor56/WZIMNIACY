@@ -4,6 +4,9 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using hints;
+using game;
+using System.Threading.Tasks;
 
 public partial class MainGame : Control
 {
@@ -23,9 +26,10 @@ public partial class MainGame : Control
     [Export] Control helpScene;
     [Export] CardManager cardManager;
     [Export] LoadingScreen loadingScreen;
-
+    [Export] public ReactionOverlay reactionOverlay;
 
     private bool isGameStarted = false;
+    public bool isGameFinished {get; private set;} = false;
     private readonly Dictionary<int, P2PNetworkManager.GamePlayer> playersByIndex = new();
     public Dictionary<int, P2PNetworkManager.GamePlayer> PlayersByIndex => playersByIndex;
 
@@ -34,6 +38,7 @@ public partial class MainGame : Control
     private EOSManager eosManager;
 
     private ILLM llm;
+    public AIPlayer.LLMPlayer llmPlayer { get; private set; }
 
     // Określa czy lokalny gracz jest hostem (właścicielem lobby EOS) - wartość ustawiana dynamicznie na podstawie EOSManager.IsLobbyOwner
     public bool isHost = false;
@@ -142,8 +147,17 @@ public partial class MainGame : Control
         public int turnCounter { get; set; }
     }
 
+    private sealed class ReactionPayload
+    {
+        public string text { get; set; }
+        public uint durationMs { get; set; }
+    }
     private bool p2pJsonTestSent = false;
     // =====================
+
+    private Task reactionTask;
+    private bool isShuttingDown = false;
+    private const int ReactionDurationMs = 2500;
 
     private readonly HashSet<int> confirmedCardIds = new();
 
@@ -248,6 +262,8 @@ public partial class MainGame : Control
     // === P2P (DODANE) ===
     public override void _ExitTree()
     {
+        isShuttingDown = true;
+
         if (p2pNet != null)
         {
             p2pNet.PacketHandlers -= HandlePackets;
@@ -286,6 +302,34 @@ public partial class MainGame : Control
 
             return true; // zjedliśmy pakiet
         }
+
+        // === REACTION (NEW RPC) ===
+        // Każdy (host i client) wyświetla reakcję z hosta
+        if (packet.type == "reaction")
+        {
+            ReactionPayload payload;
+            try
+            {
+                payload = packet.payload.Deserialize<ReactionPayload>();
+            }
+            catch (Exception e)
+            {
+                GD.PrintErr($"[MainGame] RPC reaction payload parse error: {e.Message}");
+                return true;
+            }
+
+            if (payload == null || string.IsNullOrWhiteSpace(payload.text))
+            {
+                GD.PrintErr("[MainGame] RPC reaction payload invalid (null/empty text)");
+                return true;
+            }
+
+            float seconds = payload.durationMs / 1000.0f;
+            ShowReactionBubble(payload.text, seconds);
+
+            return true;
+        }
+        // ==========================
 
         // Odebranie infomacji przez clienta o zaznaczonych kartach
         if (packet.type == "selected_cards" && !isHost)
@@ -383,6 +427,8 @@ public partial class MainGame : Control
             try
             {
                 payload = packet.payload.Deserialize<CardConfirmPressedPayload>();
+                GD.Print($"[MainGame] card_confirm_pressed parsed OK: cardId={payload.cardId} by={payload.by}");
+
             }
             catch (Exception e)
             {
@@ -644,9 +690,8 @@ public partial class MainGame : Control
         {
             gameRightPanel.DisableSkipButton();
         }
-
-
-        if (eosManager.isLobbyOwner)
+        
+        if (isHost)
         {
             if (eosManager.currentAIType == EOSManager.AIType.LocalLLM)
             {
@@ -654,6 +699,7 @@ public partial class MainGame : Control
             }
             else
             {
+
                 var apiKey = eosManager.ApiKey;
                 if (string.IsNullOrEmpty(apiKey))
                 {
@@ -662,6 +708,11 @@ public partial class MainGame : Control
 
                 llm = new DeepSeekLLM(apiKey);
             }
+        }
+
+        if (eosManager.currentGameMode == EOSManager.GameMode.AIvsHuman)
+        {
+            llmPlayer = new AIPlayer.LLMPlayer(llm);
         }
 
         EmitSignal(SignalName.GameReady);
@@ -790,6 +841,66 @@ public partial class MainGame : Control
         return isGameStarted;
     }
 
+    private static bool TryExtractReactionText(string raw, out string text)
+    {
+        text = null;
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+
+        // Reaction.create() zwraca string przycięty do { ... } (JSON)
+        // ale czasem LLM może zwrócić sam tekst bez JSON -> wtedy fallback.
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                // Najczęstsze pola jakie modele zwracają
+                if (root.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String)
+                {
+                    text = t.GetString();
+                    return !string.IsNullOrWhiteSpace(text);
+                }
+                if (root.TryGetProperty("reaction", out var r) && r.ValueKind == JsonValueKind.String)
+                {
+                    text = r.GetString();
+                    return !string.IsNullOrWhiteSpace(text);
+                }
+                if (root.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String)
+                {
+                    text = m.GetString();
+                    return !string.IsNullOrWhiteSpace(text);
+                }
+            }
+        }
+        catch
+        {
+            // ignore -> fallback niżej
+        }
+
+        // Fallback: jeśli to nie JSON, pokaż jak leci,
+        // ale usuń zewnętrzne klamry (bo Reaction.create() je dokleja)
+        text = raw.Trim();
+
+        if (text.Length >= 2 && text[0] == '{' && text[^1] == '}')
+        {
+            text = text.Substring(1, text.Length - 2).Trim();
+        }
+
+        return !string.IsNullOrWhiteSpace(text);
+    }
+
+    private void ShowReactionBubble(string text, float seconds = 2.5f)
+    {
+        if (reactionOverlay == null)
+        {
+            GD.PrintErr("[MainGame] ReactionOverlay is null (Export not assigned in Inspector)");
+            return;
+        }
+
+        reactionOverlay.ShowReaction(text, seconds);
+    }   
+
     private void StartCaptainPhase()
     {
         if (gameInputPanel != null)
@@ -806,6 +917,9 @@ public partial class MainGame : Control
             bool isBlue = currentTurn == Team.Blue;
             gameRightPanel.UpdateHintDisplay(word, number, isBlue);
             gameRightPanel.BroadcastHint(word, number, currentTurn);
+
+            // FIX: ustawiamy LastGeneratedHint, bo TryBuildReactionText tego wymaga.
+            gameRightPanel.SetLastGeneratedHint(word, number);
         }
     }
 
@@ -862,9 +976,102 @@ public partial class MainGame : Control
         GD.Print($"[MainGame] SendRpcToAllClients(turn_changed) sent={sent} currentTurn={currentTurn} turnCounter={turnCounter}");
     }
 
+    private void BroadcastReaction(string text, uint durationMs = ReactionDurationMs)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        // Host i tak powinien zobaczyć to samo od razu
+        CallDeferred(nameof(ShowReactionBubble), text, durationMs / 1000.0f);
+
+        if (p2pNet == null) return;
+        if (!isHost) return;
+
+        var payload = new ReactionPayload
+        {
+            text = text,
+            durationMs = durationMs
+        };
+
+        int sent = p2pNet.SendRpcToAllClients("reaction", payload);
+        GD.Print($"[MainGame] SendRpcToAllClients(reaction) sent={sent}");
+    }
+
+    private async Task<string> TryBuildReactionTextAsync(Hint hint, Card pickedCard, Team turnAtPick)
+    {
+        if (llm == null)
+        {
+            GD.PrintErr("[MainGame] Reaction: llm is null");
+            return null;
+        }
+
+        if (hint == null)
+        {
+            GD.PrintErr("[MainGame] Reaction: hint is null");
+            return null;
+        }
+
+        if (pickedCard == null)
+        {
+            GD.PrintErr("[MainGame] Reaction: pickedCard is null");
+            return null;
+        }
+
+        bool kapitnBomba = false; // jak macie flagę to podepniemy później
+        game.Team actualTour = turnAtPick.ToAiLibTeam();
+
+        try
+        {
+            string reactionRaw = await global::Reaction.Reaction.create(llm, hint, pickedCard, kapitnBomba, actualTour);
+            return reactionRaw;
+        }
+        catch (Exception e)
+        {
+            GD.PrintErr($"[MainGame] Reaction: create() exception: {e}");
+            return null;
+        }
+    }
+
+    private async Task GenerateAndBroadcastReactionAsync(Hint hintSnapshot, Card pickedCardSnapshot, Team turnSnapshot)
+    {
+        try
+        {
+            // (1) jeśli już zamykamy scenę, nie zaczynaj
+            if (isShuttingDown || !IsInsideTree()) return;
+
+            string reactionRaw = await TryBuildReactionTextAsync(hintSnapshot, pickedCardSnapshot, turnSnapshot);
+
+            // (2) najważniejsze: po await scena mogła zniknąć
+            if (isShuttingDown || !IsInsideTree()) return;
+
+            if (string.IsNullOrWhiteSpace(reactionRaw))
+            {
+                GD.PrintErr("[MainGame] Reaction skipped (reactionRaw empty/null).");
+                return;
+            }
+
+            if (!TryExtractReactionText(reactionRaw, out string cleanText))
+            {
+                GD.PrintErr("[MainGame] Reaction skipped (could not extract text).");
+                return;
+            }
+
+            // UI + RPC (NA MAIN THREAD)
+            CallDeferred(nameof(BroadcastReaction), cleanText, (uint)ReactionDurationMs);
+        }
+        catch (Exception e)
+        {
+            GD.PrintErr($"[MainGame] GenerateAndBroadcastReactionAsync exception: {e}");
+        }
+    }
+
     // Wspólna ścieżka: host potwierdza kartę i rozsyła efekty do klientów
     public void HostConfirmCardAndBroadcast(int cardId, string confirmedBy)
     {
+        GD.Print($"[MainGame] HostConfirmCardAndBroadcast ENTER cardId={cardId} by={confirmedBy}");
+
         if (!isHost) return;
         if (!isGameStarted)
         {
@@ -881,7 +1088,7 @@ public partial class MainGame : Control
         confirmedCardIds.Add(cardId);
 
         if (cardManager == null)
-        {
+           {
             GD.PrintErr("[MainGame] cardManager is null on host");
             return;
         }
@@ -905,8 +1112,18 @@ public partial class MainGame : Control
         Team beforeTurn = currentTurn;
         int beforeTurnCounter = turnCounter;
 
+        GD.Print($"[ReactionTrace][HOST] Before ApplyCardConfirmedHost cardId={cardId} turn={currentTurn} counter={turnCounter}");
+
+        // ===== SNAPSHOT dla reakcji (MUSI być przed ApplyCardConfirmedHost) =====
+        Hint hintSnapshot = gameRightPanel?.LastGeneratedHint;
+        Card pickedCardSnapshot = cardNode?.cardInfo;
+        Team turnSnapshot = currentTurn;
+        // ==============================================================
+
         // 1) Host wykonuje logikę gry lokalnie (źródło prawdy)
         cardManager.ApplyCardConfirmedHost(cardNode);
+
+        GD.Print($"[ReactionTrace][HOST] After ApplyCardConfirmedHost cardId={cardId} turn={currentTurn} counter={turnCounter}");
 
         // 2) Host wysyła informację do WSZYSTKICH klientów (klienci dopiero teraz robią UI/deck)
         if (p2pNet != null)
@@ -927,10 +1144,32 @@ public partial class MainGame : Control
         {
             BroadcastTurnChanged();
         }
+
+        // 4) Generujemy i broadcastujemy reakcję ASYNC (nie blokujemy gry)
+        if (hintSnapshot == null)
+        {
+            GD.Print("[MainGame] Reaction skipped (hintSnapshot is null). Did you call SetLastGeneratedHint()?");
+            return;
+        }
+
+        if (pickedCardSnapshot == null)
+        {
+            GD.PrintErr("[MainGame] Reaction skipped (pickedCardSnapshot is null).");
+            return;
+        }
+
+        reactionTask = GenerateAndBroadcastReactionAsync(hintSnapshot, pickedCardSnapshot, turnSnapshot);
+        reactionTask.ContinueWith(
+            t => GD.PrintErr($"[MainGame] Reaction task faulted: {t.Exception}"),
+            TaskContinuationOptions.OnlyOnFaulted
+        );
+
     }
 
     public void OnCardConfirmPressedClient(int cardId)
     {
+        GD.Print($"[MainGame] OnCardConfirmPressedClient fired cardId={cardId}");
+
         if (!CanInteractWithGame()) return;
         if (p2pNet == null) return;
 
@@ -954,7 +1193,7 @@ public partial class MainGame : Control
         gameRightPanel.CommitToHistory();
         StartCaptainPhase();
 
-        if (eosManager.isLobbyOwner)
+        if (isHost)
         {
             await gameRightPanel.GenerateAndUpdateHint(llm, cardManager.Deck, currentTurn);
         }
@@ -1096,6 +1335,7 @@ public partial class MainGame : Control
     public void SetTurnBlue()
     {
         GD.Print("Turn blue...");
+        cardManager.ClearAllSelections();
         currentTurn = Team.Blue;
         if (playerTeam == currentTurn)
             gameRightPanel.EnableSkipButton();
@@ -1110,6 +1350,7 @@ public partial class MainGame : Control
     public void SetTurnRed()
     {
         GD.Print("Turn red...");
+        cardManager.ClearAllSelections();
         currentTurn = Team.Red;
         if (playerTeam == currentTurn)
             gameRightPanel.EnableSkipButton();
@@ -1205,6 +1446,15 @@ public partial class MainGame : Control
                 break;
 
             case CardManager.CardType.Common:
+                if (currentTurn == Team.Blue)
+                {
+                    blueNeutralFound++;
+                }
+                else if (currentTurn == Team.Red)
+                {
+                    redNeutralFound++;
+                }
+                
                 TurnChange();
                 break;
 
@@ -1238,6 +1488,8 @@ public partial class MainGame : Control
 
         sendSelectionsTimer.Stop();
 
+        isGameFinished = true;
+
         gameRightPanel.CancelHintGeneration();
         GD.Print($"Koniec gry! Wygrywa: {winner}");
         UpdateMaxStreak();
@@ -1265,3 +1517,4 @@ public partial class MainGame : Control
         return PuidToIndex(localPuid);
     }
 }
+
