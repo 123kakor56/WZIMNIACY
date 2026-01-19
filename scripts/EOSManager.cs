@@ -154,6 +154,9 @@ public partial class EOSManager : Node
 			return;
 		}
 
+		// Zamnij lobby
+		LockLobby();
+
 		// 1) Generowanie danych
 		string sessionId = GenerateSessionId();
 		ulong seed = (ulong)GD.Randi(); // na razie proste; potem można rozszerzyć
@@ -177,6 +180,89 @@ public partial class EOSManager : Node
 		GD.Print($"📤 Host requested session start: {sessionId}, seed={seed}");
 	}
 
+	/// <summary>
+	/// Ustawia atrybut członka lobby informujący czy gracz jest w widoku lobby
+	/// Wywoływane przy wejściu do lobby (true) i wejściu do gry (false)
+	/// </summary>
+	public void SetPlayerInLobbyView(bool inLobby)
+	{
+		if (string.IsNullOrEmpty(currentLobbyId))
+		{
+			GD.Print("⚠️ Cannot set InLobbyView: not in lobby");
+			return;
+		}
+
+		isLocalPlayerInLobbyView = inLobby;
+		string value = inLobby ? "true" : "false";
+		SetMemberAttribute("InLobbyView", value);
+	}
+
+	/// <summary>
+	/// Sprawdza czy wszyscy gracze w lobby są w widoku lobby (nie w grze)
+	/// </summary>
+	public bool AreAllPlayersInLobbyView()
+	{
+		if (currentLobbyMembers == null || currentLobbyMembers.Count == 0)
+		{
+			GD.Print("⚠️ AreAllPlayersInLobbyView: no lobby members");
+			return true;
+		}
+
+		foreach (var member in currentLobbyMembers)
+		{
+			string inLobbyView = "true"; // Domyślnie true
+
+			if (member.ContainsKey("inLobbyView"))
+			{
+				inLobbyView = member["inLobbyView"].ToString().ToLower();
+			}
+
+			if (inLobbyView != "true")
+			{
+				string displayName = member.ContainsKey("displayName") ? member["displayName"].ToString() : "Unknown";
+				GD.Print($"⚠️ Player {displayName} is not in lobby view yet (InLobbyView={inLobbyView})");
+				return false;
+			}
+		}
+
+		GD.Print("✅ All players are in lobby view");
+		return true;
+	}
+
+	/// <summary>
+	/// Resetuje stan sesji gry w lobby - używane po zakończeniu gry i powrocie do lobby
+	/// Tylko host może wywołać tę metodę
+	/// </summary>
+	public void ResetGameSession()
+	{
+		if (!isLobbyOwner)
+		{
+			GD.Print("⚠️ Only host can reset game session");
+			return;
+		}
+
+		if (string.IsNullOrEmpty(currentLobbyId))
+		{
+			GD.Print("⚠️ Cannot reset session: not in lobby");
+			return;
+		}
+
+		// Wyczyść atrybuty sesji w lobby
+		SetLobbyAttribute(ATTR_SESSION_STATE, GameSessionState.None.ToString());
+		SetLobbyAttribute(ATTR_SESSION_ID, "");
+		SetLobbyAttribute(ATTR_SESSION_SEED, "");
+		SetLobbyAttribute(ATTR_SESSION_HOST, "");
+
+		// Wyczyść lokalny cache sesji
+		CurrentGameSession.SessionId = "";
+		CurrentGameSession.LobbyId = "";
+		CurrentGameSession.Seed = 0;
+		CurrentGameSession.HostUserId = "";
+		CurrentGameSession.State = GameSessionState.None;
+
+		GD.Print("✅ Game session reset - ready for new game");
+	}
+
 	//Generuje krótki, czytelny identyfikator sesji gry (debug/ logi/ recconect)
 	private string GenerateSessionId()
 	{
@@ -193,6 +279,7 @@ public partial class EOSManager : Node
 	// Obecne lobby w którym jesteśmy
 	public string currentLobbyId = null;
 	public bool isLobbyOwner = false;
+	public bool isLocalPlayerInLobbyView = true;
 
 	// Czy trwa proces dołączania do lobby
 	public bool isJoiningLobby = false;
@@ -510,6 +597,7 @@ public partial class EOSManager : Node
 		// Wyczyść obecne lobby
 		currentLobbyId = null;
 		isLobbyOwner = false;
+		isLocalPlayerInLobbyView = true; // Reset
 
 		// Wyczyść CustomLobbyId
 		currentCustomLobbyId = "";
@@ -1113,10 +1201,10 @@ public partial class EOSManager : Node
 		return "";
 	}
 
-    /// <summary>
-    /// Odbudowuje listę używanych ikon na podstawie obecnych członków lobby
-    /// </summary>
-    private void RebuildUsedIcons()
+	/// <summary>
+	/// Odbudowuje listę używanych ikon na podstawie obecnych członków lobby
+	/// </summary>
+	private void RebuildUsedIcons()
 	{
 		usedBlueIcons.Clear();
 		usedRedIcons.Clear();
@@ -2009,6 +2097,7 @@ public partial class EOSManager : Node
 			// Wyczyść obecne lobby
 			currentLobbyId = null;
 			isLobbyOwner = false;
+			isLocalPlayerInLobbyView = true; // Reset
 
 			// Wyczyść CustomLobbyId
 			currentCustomLobbyId = "";
@@ -2244,6 +2333,12 @@ public partial class EOSManager : Node
 			{
 				GD.Print("  👑 ✅ YOU have been promoted to lobby owner!");
 				isLobbyOwner = true;
+
+				if (isLocalPlayerInLobbyView)
+				{
+					UnlockLobby();
+					ResetGameSession();
+				}
 			}
 			else
 			{
@@ -2793,6 +2888,128 @@ public partial class EOSManager : Node
 			else
 			{
 				GD.PrintErr($"❌ Failed to update max members: {data.ResultCode}");
+			}
+
+			lobbyModification.Release();
+		});
+	}
+
+	/// <summary>
+	/// Zamyka lobby - ustawia PermissionLevel na InviteOnly, aby nowi gracze nie mogli dołączyć
+	/// Używane podczas rozpoczynania rozgrywki
+	/// </summary>
+	public void LockLobby()
+	{
+		if (string.IsNullOrEmpty(currentLobbyId) || !isLobbyOwner)
+		{
+			GD.Print("⚠️ Cannot lock lobby - not owner or no lobby");
+			return;
+		}
+
+		var modifyOptions = new UpdateLobbyModificationOptions()
+		{
+			LobbyId = currentLobbyId,
+			LocalUserId = localProductUserId
+		};
+
+		Result result = lobbyInterface.UpdateLobbyModification(ref modifyOptions, out LobbyModification lobbyModification);
+
+		if (result != Result.Success || lobbyModification == null)
+		{
+			GD.PrintErr($"❌ Failed to create lobby modification for locking: {result}");
+			return;
+		}
+
+		// Zmień PermissionLevel na InviteOnly - zablokuj lobby
+		var setPermissionOptions = new LobbyModificationSetPermissionLevelOptions()
+		{
+			PermissionLevel = LobbyPermissionLevel.Inviteonly
+		};
+
+		result = lobbyModification.SetPermissionLevel(ref setPermissionOptions);
+
+		if (result != Result.Success)
+		{
+			GD.PrintErr($"❌ Failed to set permission level: {result}");
+			lobbyModification.Release();
+			return;
+		}
+
+		var updateOptions = new UpdateLobbyOptions()
+		{
+			LobbyModificationHandle = lobbyModification
+		};
+
+		lobbyInterface.UpdateLobby(ref updateOptions, null, (ref UpdateLobbyCallbackInfo data) =>
+		{
+			if (data.ResultCode == Result.Success)
+			{
+				GD.Print("✅ Lobby locked!");
+			}
+			else
+			{
+				GD.PrintErr($"❌ Failed to lock lobby: {data.ResultCode}");
+			}
+
+			lobbyModification.Release();
+		});
+	}
+
+	/// <summary>
+	/// Otwiera lobby - ustawia PermissionLevel na PublicAdvertised, aby nowi gracze mogli dołączyć
+	/// Używane po zakończeniu rozgrywki, gdy host wraca do lobby
+	/// </summary>
+	public void UnlockLobby()
+	{
+		if (string.IsNullOrEmpty(currentLobbyId) || !isLobbyOwner)
+		{
+			GD.Print("⚠️ Cannot unlock lobby - not owner or no lobby");
+			return;
+		}
+
+		var modifyOptions = new UpdateLobbyModificationOptions()
+		{
+			LobbyId = currentLobbyId,
+			LocalUserId = localProductUserId
+		};
+
+		Result result = lobbyInterface.UpdateLobbyModification(ref modifyOptions, out LobbyModification lobbyModification);
+
+		if (result != Result.Success || lobbyModification == null)
+		{
+			GD.PrintErr($"❌ Failed to create lobby modification for unlocking: {result}");
+			return;
+		}
+
+		// Zmień PermissionLevel na PublicAdvertised - odblokuj lobby
+		var setPermissionOptions = new LobbyModificationSetPermissionLevelOptions()
+		{
+			PermissionLevel = LobbyPermissionLevel.Publicadvertised
+		};
+
+		result = lobbyModification.SetPermissionLevel(ref setPermissionOptions);
+
+		if (result != Result.Success)
+		{
+			GD.PrintErr($"❌ Failed to set permission level: {result}");
+			lobbyModification.Release();
+			return;
+		}
+
+		var updateOptions = new UpdateLobbyOptions()
+		{
+			LobbyModificationHandle = lobbyModification
+		};
+
+		lobbyInterface.UpdateLobby(ref updateOptions, null, (ref UpdateLobbyCallbackInfo data) =>
+		{
+			if (data.ResultCode == Result.Success)
+			{
+				GD.Print("✅ Lobby unlocked!");
+			}
+			else
+			{
+				GD.PrintErr($"❌ Failed to unlock lobby: {data.ResultCode}");
 			}
 
 			lobbyModification.Release();
@@ -3672,6 +3889,7 @@ public partial class EOSManager : Node
 				string displayName = null;
 				string team = ""; // "Blue", "Red", lub pusty string (nie przypisany)
 				int profileIcon = 0; // Numer ikony profilowej (0 = brak)
+				string inLobbyView = "true"; // Domyślnie true dla nowych graczy
 				bool foundNickname = false;
 
 				// Iteruj po wszystkich atrybutach członka
@@ -3707,6 +3925,12 @@ public partial class EOSManager : Node
 						if (keyStr != null && keyStr.Equals("ProfileIcon", StringComparison.OrdinalIgnoreCase))
 						{
 							int.TryParse(valueStr, out profileIcon);
+						}
+
+						// Pobierz InLobbyView
+						if (keyStr != null && keyStr.Equals("InLobbyView", StringComparison.OrdinalIgnoreCase))
+						{
+							inLobbyView = valueStr;
 						}
 					}
 				}
@@ -3749,11 +3973,12 @@ public partial class EOSManager : Node
 					{ "isOwner", isOwner },
 					{ "isLocalPlayer", isLocalPlayer },
 					{ "team", team },
-					{ "profileIcon", profileIcon }
+					{ "profileIcon", profileIcon },
+					{ "inLobbyView", inLobbyView }
 				};
 
 				membersList.Add(memberData);
-				GD.Print($"  ✅ Added member: {displayName}, team={team}, icon={profileIcon}");
+				GD.Print($"  ✅ Added member: {displayName}, team={team}, icon={profileIcon}, inLobbyView={inLobbyView}");
 			}
 		}
 

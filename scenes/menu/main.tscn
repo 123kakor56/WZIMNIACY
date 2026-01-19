@@ -1,6 +1,6 @@
-[gd_scene load_steps=9 format=3 uid="uid://c2yf84d4xmho2"]
+[gd_scene load_steps=8 format=3 uid="uid://c2yf84d4xmho2"]
 
-[ext_resource type="Script" uid="uid://yfaggvbm7jh1" path="res://scenes/menu/MainMenu.cs" id="1_3xm2k"]
+[ext_resource type="Script" uid="uid://dghu5uw7p572c" path="res://scenes/menu/MainMenu.cs" id="1_3xm2k"]
 [ext_resource type="FontFile" uid="uid://c65l5c77oy1p5" path="res://assets/fonts/SpaceMono-Bold.ttf" id="1_h2yge"]
 [ext_resource type="FontFile" uid="uid://fx12hnivyylk" path="res://assets/fonts/SpaceMono-Regular.ttf" id="1_ig7tw"]
 [ext_resource type="StyleBox" uid="uid://drl2twqn1nt3b" path="res://assets/buttons/button_border.tres" id="2_0xm2m"]
@@ -10,8 +10,10 @@
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ec7jh"]
 bg_color = Color(0.23392546, 0.23392546, 0.23392543, 1)
+[ext_resource type="PackedScene" uid="uid://bfxpcutxox0tt" path="res://scenes/settings/Settings.tscn" id="6_gmxck"]
+[ext_resource type="PackedScene" uid="uid://cu6vu1ayjqexh" path="res://scenes/help/Help.tscn" id="7_ec7jh"]
 
-[node name="Main" type="Control" node_paths=PackedStringArray("createButton", "joinButton", "settingsButton", "helpButton", "quitButton")]
+[node name="Main" type="Control" node_paths=PackedStringArray("createButton", "joinButton", "settingsButton", "helpButton", "quitButton", "settingsMenuNode", "helpMenuNode")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -24,6 +26,8 @@ joinButton = NodePath("Panel/MenuCenter/VMenu/JoinGame/JoinGameButton")
 settingsButton = NodePath("Panel/MenuCenter/VMenu/Settings/SettingsButton")
 helpButton = NodePath("Panel/MenuCenter/VMenu/Help/HelpButton")
 quitButton = NodePath("Panel/MenuCenter/VMenu/Quit/QuitButton")
+settingsMenuNode = NodePath("Settings")
+helpMenuNode = NodePath("HelpScene")
 
 [node name="Panel" type="ColorRect" parent="."]
 layout_mode = 1
@@ -185,3 +189,10 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_ec7jh")
 placeholder_text = "RemoteUserID"
 
 [connection signal="pressed" from="ClientStartUI/JoinRemoteUserID" to="EOSInteropTestGD" method="_on_join_remote_user_id_pressed"]
+[node name="Settings" parent="." instance=ExtResource("6_gmxck")]
+visible = false
+layout_mode = 1
+
+[node name="HelpScene" parent="." instance=ExtResource("7_ec7jh")]
+visible = false
+layout_mode = 1
