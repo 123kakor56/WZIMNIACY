@@ -186,9 +186,9 @@ public partial class CardManager : GridContainer
 		GD.Print("Karta kliknięta: " + card.Name);
 		card.SetColor();
 		card.MouseFilter = MouseFilterEnum.Ignore;
-		HideAllCards();
+        card.ClearSelections();
 
-		if (Deck == null)
+        if (Deck == null)
         {
             LoadDeck();
         }
@@ -214,6 +214,8 @@ public partial class CardManager : GridContainer
 
 	private void OnCardConfirmed(AgentCard card)
 	{
+		GD.Print($"[CardManager] OnCardConfirmed fired for cardIndex={card?.GetIndex()} name={card?.Name} isHost={mainGame?.isHost}");
+
 		if (card == null) return;
 
 		// cardId = indeks slotu w GridContainer (deterministyczny na wszystkich maszynach)
@@ -231,7 +233,22 @@ public partial class CardManager : GridContainer
 		mainGame.HostConfirmCardAndBroadcast(cardId, eosManager.localProductUserIdString);
 	}
 
-	private void HideAllCards()
+    public CardType? OnCardConfirmedByAI(game.Card confirmedCard)
+    {
+        foreach (AgentCard card in GetTree().GetNodesInGroup("cards"))
+        {
+            if (card.cardInfo.Word == confirmedCard.Word) // TODO: check if the card is already selected
+            {
+                OnCardConfirmed(card);
+                return card.Type; // zwracam typ bo libka AI zwraca zle typy kart
+            }
+        }
+
+        GD.PrintErr("AI confirmed card not found among AgentCards");
+        return null;
+    }
+
+	public void ClearAllSelections()
 	{
 		foreach (AgentCard card in GetTree().GetNodesInGroup("cards"))
 		{
