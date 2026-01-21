@@ -39,7 +39,6 @@ public partial class RightPanel : Node
         );
     }
 
-
     private Godot.Timer hintGenerationAnimationTimer;
 
     private CancellationTokenSource hintGeneratorCancellation;
@@ -72,7 +71,13 @@ public partial class RightPanel : Node
         mainGame = GetTree().CurrentScene as MainGame;
 
         CallDeferred(nameof(SubscribeToNetwork));
-        
+
+    }
+
+    public override void _ExitTree()
+    {
+        CancelHintGeneration();
+        base._ExitTree();
     }
 
     private void SubscribeToNetwork()
@@ -98,14 +103,14 @@ public partial class RightPanel : Node
         {
             try
             {
-                
+
                 var data = packet.payload.Deserialize<HintNetworkPayload>();
 
                 GD.Print($"[RightPanel] Received Hint: {data.Word} for {data.TurnTeam}");
 
                 UpdateHintDisplay(data.Word, data.Number, data.TurnTeam);
-                
-                return true; 
+
+                return true;
             }
             catch (Exception e)
             {
@@ -130,7 +135,7 @@ public partial class RightPanel : Node
                     HintGenerationAnimationStop();
                 }
 
-                return true; 
+                return true;
             }
             catch (Exception e)
             {
@@ -138,14 +143,14 @@ public partial class RightPanel : Node
                 return true;
             }
         }
-        return false; 
+        return false;
     }
 
     public void BroadcastHint(string word, int number, MainGame.Team team)
     {
-        if (!mainGame.isHost) 
+        if (!mainGame.isHost)
         {
-            return; 
+            return;
         }
 
         var net = mainGame.P2PNet;
@@ -229,7 +234,7 @@ public partial class RightPanel : Node
         );
         BroadcastHint(hint.Word, hint.NoumberOfSimilarWords, currentTurn);
 
-        if (eosManager.currentGameMode == EOSManager.GameMode.AIvsHuman && currentTurn == MainGame.Team.Blue) // AI is assigned to Blue team
+        if (eosManager.currentGameMode == EOSManager.GameMode.AIvsHuman && currentTurn == MainGame.Team.Red) // AI is assigned to Red team
         {
             PickAiCards(hint.Word, hint.NoumberOfSimilarWords);
         }
@@ -251,7 +256,7 @@ public partial class RightPanel : Node
             GD.Print($"[AIvsHuman] AI picked card: {pickedCard.Word} {pickedCard.Team}");
             CardManager.CardType? pickedCardType = cardManager.OnCardConfirmedByAI(pickedCard);
 
-            if (pickedCardType != CardManager.CardType.Blue) // break the loop if AI picked a wrong card
+            if (pickedCardType != CardManager.CardType.Red) // break the loop if AI picked a wrong card
             {
                 GD.Print("[AIvsHuman] AI picked a wrong card. Ending turn.");
                 return;
@@ -276,7 +281,7 @@ public partial class RightPanel : Node
     public void UpdateHintDisplay(string word, int number, MainGame.Team team)
     {
         bool isBlue = (team == MainGame.Team.Blue);
-        
+
         UpdateHintDisplay(word, number, isBlue);
     }
 
@@ -399,6 +404,17 @@ public partial class RightPanel : Node
 
     private async Task<Hint> GenerateHint(ILLM llm, game.Deck deck, MainGame.Team currentTurn)
     {
-        return await Hint.Create(deck, llm, currentTurn.ToAiLibTeam(), oldHints[currentTurn]);
+        Hint hint = null;
+        const uint GENERATE_HINT_MAX_TRIES = 3;
+        for (int i = 0; i < GENERATE_HINT_MAX_TRIES; i++)
+        {
+            hint = await Hint.Create(deck, llm, currentTurn.ToAiLibTeam(), oldHints[currentTurn]);
+            if (!oldHints[currentTurn].Contains(hint.Word))
+            {
+                break;
+            }
+            GD.Print($"Generated already shown hint. Try {i + 1} out of {GENERATE_HINT_MAX_TRIES}");
+        }
+        return hint;
     }
 }
