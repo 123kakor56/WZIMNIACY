@@ -2,6 +2,7 @@ using AI;
 using Epic.OnlineServices;
 using Godot;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Text.Json;
 using hints;
@@ -160,6 +161,8 @@ public partial class MainGame : Control
     private const int ReactionDurationMs = 2500;
 
     private readonly HashSet<int> confirmedCardIds = new();
+
+    private EndGameReason lastEndGameReason = EndGameReason.AllCardsFound;
 
     // Called when the node enters the scene tree for the first time.
     public override void _Ready()
@@ -690,7 +693,7 @@ public partial class MainGame : Control
         {
             gameRightPanel.DisableSkipButton();
         }
-        
+
         if (isHost)
         {
             if (eosManager.currentAIType == EOSManager.AIType.LocalLLM)
@@ -713,6 +716,14 @@ public partial class MainGame : Control
         if (eosManager.currentGameMode == EOSManager.GameMode.AIvsHuman)
         {
             llmPlayer = new AIPlayer.LLMPlayer(llm);
+            playersByIndex.Add(-1, new P2PNetworkManager.GamePlayer
+            {
+                index = -1,
+                puid = "ai_player",
+                name = "AI",
+                team = Team.Red,
+                profileIconPath = eosManager.GetProfileIconPath(EOSManager.Team.Red, 5)
+            });
         }
 
         EmitSignal(SignalName.GameReady);
@@ -732,9 +743,7 @@ public partial class MainGame : Control
             index = 0,
             puid = eosManager.localProductUserIdString,
             name = GetDisplayNameFromLobby(eosManager.localProductUserIdString),
-            team = eosManager.GetTeamForUser(eosManager.localProductUserIdString) == EOSManager.Team.Blue
-                ? Team.Blue
-                : Team.Red,
+            team = TeamEnumExt.FromEOSManagerTeam(eosManager.GetTeamForUser(eosManager.localProductUserIdString)),
             profileIconPath = eosManager.GetProfileIconPathForUser(eosManager.localProductUserIdString)
         });
 
@@ -764,9 +773,7 @@ public partial class MainGame : Control
                 index = index,
                 puid = puid,
                 name = GetDisplayNameFromLobby(puid),
-                team = eosManager.GetTeamForUser(puid) == EOSManager.Team.Blue
-                    ? Team.Blue
-                    : Team.Red,
+                team = TeamEnumExt.FromEOSManagerTeam(eosManager.GetTeamForUser(puid)),
                 profileIconPath = eosManager.GetProfileIconPathForUser(puid)
             });
 
@@ -899,7 +906,7 @@ public partial class MainGame : Control
         }
 
         reactionOverlay.ShowReaction(text, seconds);
-    }   
+    }
 
     private void StartCaptainPhase()
     {
@@ -1019,12 +1026,14 @@ public partial class MainGame : Control
             return null;
         }
 
-        bool kapitnBomba = false; // jak macie flagę to podepniemy później
-        game.Team actualTour = turnAtPick.ToAiLibTeam();
+		var args = OS.GetCmdlineArgs();
+		bool captain_bomb = args.Contains("--kapitanbomba");
+
+		game.Team actualTour = turnAtPick.ToAiLibTeam();
 
         try
         {
-            string reactionRaw = await global::Reaction.Reaction.create(llm, hint, pickedCard, kapitnBomba, actualTour);
+            string reactionRaw = await global::Reaction.Reaction.create(llm, hint, pickedCard, captain_bomb, actualTour);
             return reactionRaw;
         }
         catch (Exception e)
@@ -1297,7 +1306,10 @@ public partial class MainGame : Control
 
         UpdatePointsDisplay();
         if (pointsBlue == 0)
+        {
+            lastEndGameReason = EndGameReason.AllCardsFound;
             EndGame(Team.Blue);
+        }
     }
 
     public void RemovePointRed()
@@ -1316,7 +1328,10 @@ public partial class MainGame : Control
 
         UpdatePointsDisplay();
         if (pointsRed == 0)
+        {
+            lastEndGameReason = EndGameReason.AllCardsFound;
             EndGame(Team.Red);
+        }
     }
 
     public void TurnChange()
@@ -1343,8 +1358,8 @@ public partial class MainGame : Control
             gameRightPanel.DisableSkipButton();
         scoreContainerBlue.SetDiodeOn();
         scoreContainerRed.SetDiodeOff();
-        teamListBlue.Modulate = new Color(2.8f, 2.8f, 2.8f, 1f);
-        teamListRed.Modulate = new Color(1f, 1f, 1f, 1f);
+        teamListBlue.SelfModulate = new Color(2.8f, 2.8f, 2.8f, 1f);
+        teamListRed.SelfModulate = new Color(1f, 1f, 1f, 1f);
     }
 
     public void SetTurnRed()
@@ -1358,8 +1373,8 @@ public partial class MainGame : Control
             gameRightPanel.DisableSkipButton();
         scoreContainerBlue.SetDiodeOff();
         scoreContainerRed.SetDiodeOn();
-        teamListBlue.Modulate = new Color(1f, 1f, 1f, 1f);
-        teamListRed.Modulate = new Color(2.8f, 2.8f, 2.8f, 1f);
+        teamListBlue.SelfModulate = new Color(1f, 1f, 1f, 1f);
+        teamListRed.SelfModulate = new Color(2.8f, 2.8f, 2.8f, 1f);
     }
 
     public void OnCardSelected(AgentCard card)
@@ -1454,11 +1469,12 @@ public partial class MainGame : Control
                 {
                     redNeutralFound++;
                 }
-                
+
                 TurnChange();
                 break;
 
             case CardManager.CardType.Assassin:
+                lastEndGameReason = EndGameReason.AssassinPicked;
                 if (currentTurn == Team.Blue)
                     EndGame(Team.Red);
                 else
@@ -1496,7 +1512,7 @@ public partial class MainGame : Control
 
         if (endGameScreen != null)
         {
-            endGameScreen.TriggerGameOver(winner);
+            endGameScreen.TriggerGameOver(winner, lastEndGameReason);
         }
     }
 
