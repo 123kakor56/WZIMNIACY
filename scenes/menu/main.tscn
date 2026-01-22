@@ -14,7 +14,7 @@
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ec7jh"]
 bg_color = Color(0.23392546, 0.23392546, 0.23392543, 1)
 
-[node name="Main" type="Control" node_paths=PackedStringArray("createButton", "joinButton", "settingsButton", "helpButton", "quitButton", "settingsMenuNode", "helpMenuNode")]
+[node name="Main" type="Control" node_paths=PackedStringArray("createButton", "joinButton", "settingsButton", "helpButton", "quitButton")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -27,8 +27,8 @@ joinButton = NodePath("Panel/MenuCenter/VBoxContainer/VMenu/JoinGame/JoinGameBut
 settingsButton = NodePath("Panel/MenuCenter/VBoxContainer/VMenu/Settings/SettingsButton")
 helpButton = NodePath("Panel/MenuCenter/VBoxContainer/VMenu/Help/HelpButton")
 quitButton = NodePath("Panel/MenuCenter/VBoxContainer/VMenu/Quit/QuitButton")
-settingsMenuNode = NodePath("Settings")
-helpMenuNode = NodePath("HelpScene")
+settingsMenuNodePath = NodePath("Settings")
+helpMenuNodePath = NodePath("HelpScene")
 
 [node name="Panel" type="ColorRect" parent="."]
 layout_mode = 1
